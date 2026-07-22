@@ -263,7 +263,7 @@ def generate_cat_recipes(count):
 def generate_rabbit_recipes(count):
     recipes = []
     styles = ["Forage Medley", "Green Salad Bowl", "Timothy Crunch", "Herbal Salad", "Fresh Salad", "Hay Topper"]
-    adjectives = ["Fiber-Rich", "Organic", "Crisp & Garden Fresh", "Wholesome", "Digestive Friendly", "Premium Raw"]
+    adjectives = ["Fiber-Rich", "Organic", "Crisp & Garden Fresh", "Wholesome", "Digestive Friendly", "Premium Raw", "Healthy", "Natural", "Delicious", "Green", "Fresh", "Select"]
 
     used_names = set()
 
@@ -322,7 +322,7 @@ def generate_rabbit_recipes(count):
 def generate_bird_recipes(count):
     recipes = []
     styles = ["Seed Chop", "Nutritious Parakeet Bowl", "Fresh Fruit Chop", "Grain Medley", "Millet Mash", "Foraging Pot"]
-    adjectives = ["Vitamin-Rich", "Tropical Bird", "Enriched Seed", "Garden Fresh", "Wholesome", "Nutrient-Dense"]
+    adjectives = ["Vitamin-Rich", "Tropical Bird", "Enriched Seed", "Garden Fresh", "Wholesome", "Nutrient-Dense", "Premium", "Natural", "Organic", "Select", "Essential", "Daily"]
 
     used_names = set()
 
@@ -379,8 +379,8 @@ def generate_bird_recipes(count):
 
 def generate_hamster_recipes(count):
     recipes = []
-    styles = ["Grain Mix", "Foraging Nibbles", "Seed Feast", "Fresh Veggie Salad", "Mealworm Salad", "Seed & Grain Cup"]
-    adjectives = ["Nutritious", "Balanced Daily", "Energy Boost", "Low Fat", "General Wellness", "Protein Crunchy"]
+    styles = ["Grain Mix", "Foraging Nibbles", "Seed Feast", "Fresh Veggie Salad", "Mealworm Salad", "Seed & Grain Cup", "Bowl", "Blend", "Chop", "Medley", "Treat", "Diet"]
+    adjectives = ["Nutritious", "Balanced Daily", "Energy Boost", "Low Fat", "General Wellness", "Protein Crunchy", "Premium", "Wholesome", "Delicious", "Fresh", "Essential", "Optimal"]
 
     used_names = set()
 
@@ -436,19 +436,19 @@ def generate_hamster_recipes(count):
 
 def main():
     print("Generating Dog Recipes (500)...")
-    dog_recipes = generate_dog_recipes(500)
+    dog_recipes = generate_dog_recipes(600)
     
-    print("Generating Cat Recipes (500)...")
-    cat_recipes = generate_cat_recipes(500)
+    print("Generating Cat Recipes (600)...")
+    cat_recipes = generate_cat_recipes(600)
 
-    print("Generating Rabbit Recipes (300)...")
-    rabbit_recipes = generate_rabbit_recipes(300)
+    print("Generating Rabbit Recipes (600)...")
+    rabbit_recipes = generate_rabbit_recipes(600)
 
-    print("Generating Bird Recipes (300)...")
-    bird_recipes = generate_bird_recipes(300)
+    print("Generating Bird Recipes (600)...")
+    bird_recipes = generate_bird_recipes(600)
 
-    print("Generating Hamster Recipes (200)...")
-    hamster_recipes = generate_hamster_recipes(200)
+    print("Generating Hamster Recipes (600)...")
+    hamster_recipes = generate_hamster_recipes(600)
 
     # Save individual JSON files
     print("Writing individual JSON files...")

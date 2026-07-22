@@ -1,22 +1,39 @@
 // app.js — All JavaScript from pawfeed00.html. Capacitor bridge appended below.
+const USE_SUPABASE_ONLY = false;
+
+    window.togglePasswordVisibility = function(inputId, iconElement) {
+      const input = document.getElementById(inputId);
+      if (input.type === 'password') {
+        input.type = 'text';
+        iconElement.textContent = '🙈';
+      } else {
+        input.type = 'password';
+        iconElement.textContent = '👁️';
+      }
+    };
+
+    // ==================== AUTH ====================
     // ==================== DATA ====================
     const BREEDS = {
       Dog: ['Labrador', 'Pug', 'Beagle', 'German Shepherd', 'Golden Retriever', 'Shih Tzu', 'Doberman', 'Rottweiler', 'Husky', 'Dachshund'],
       Cat: ['Persian', 'Siamese', 'Bengal', 'Maine Coon', 'Ragdoll', 'British Shorthair', 'Sphynx', 'Abyssinian'],
       Rabbit: ['Holland Lop', 'Lionhead', 'Dutch Rabbit', 'Mini Rex', 'Flemish Giant', 'Angora'],
       Bird: ['Parrot', 'Budgie', 'Cockatiel', 'Lovebird', 'Canary', 'Macaw'],
-      Fish: ['Goldfish', 'Betta', 'Guppy', 'Angelfish', 'Molly', 'Koi', 'Oscar', 'Tetra']
+      Fish: ['Goldfish', 'Betta', 'Guppy', 'Angelfish', 'Molly', 'Koi', 'Oscar', 'Tetra'],
+      Hamster: ['Syrian Hamster', 'Dwarf Hamster', 'Roborovski Hamster', 'Chinese Hamster', 'Campbell Hamster']
     };
     const UNSAFE = {
       Dog: ['Chocolate', 'Grapes / Raisins', 'Onion & Garlic', 'Alcohol', 'Caffeine', 'Macadamia Nuts', 'Xylitol (sweetener)', 'Avocado'],
       Cat: ['Chocolate', 'Onion & Garlic', 'Milk in excess', 'Raw fish', 'Caffeine', 'Alcohol', 'Dog food (long-term)', 'Raw eggs'],
       Rabbit: ['Chocolate', 'Avocado', 'Bread / Pasta', 'Meat', 'Iceberg lettuce', 'Sugary treats', 'Potatoes'],
       Bird: ['Chocolate', 'Avocado', 'Caffeine', 'Alcohol', 'Salty food', 'Onion & Garlic', 'Apple seeds'],
-      Fish: ['Bread', 'Human snacks', 'Oily food', 'Overfeeding pellets', 'Citrus fruits']
+      Fish: ['Bread', 'Human snacks', 'Oily food', 'Overfeeding pellets', 'Citrus fruits'],
+      Hamster: ['Onion & Garlic', 'Chocolate', 'Citrus fruits', 'Almonds', 'Apple seeds', 'Sugary treats', 'Iceberg lettuce', 'Salty snacks']
     };
-    const PET_ICONS = { Dog: '🐶', Cat: '🐱', Rabbit: '🐰', Bird: '🦜', Fish: '🐟' };
+    const PET_ICONS = { Dog: '🐶', Cat: '🐱', Rabbit: '🐰', Bird: '🦜', Fish: '🐟', Hamster: '🐹' };
 
     let reminderTimers = [];
+    let activeTrackerPet = 0;
     let selectedPlannerDateStr = new Date().toISOString().slice(0, 10);
 
     let TOXIC_FOODS = [];
@@ -24,8 +41,8 @@
     let SYMPTOM_TRIAGE = [];
     let VACCINE_SCHEDULE = {};
     let breedCache = {
-      Dog: JSON.parse(localStorage.getItem('cachedDogBreeds')) || [],
-      Cat: JSON.parse(localStorage.getItem('cachedCatBreeds')) || []
+      Dog: JSON.parse((USE_SUPABASE_ONLY ? null : localStorage.getItem('cachedDogBreeds'))) || [],
+      Cat: JSON.parse((USE_SUPABASE_ONLY ? null : localStorage.getItem('cachedCatBreeds'))) || []
     };
 
     async function loadReferenceDatasets() {
@@ -67,7 +84,7 @@
           life_span: b.life_span || ''
         }));
         breedCache[species] = simplified;
-        localStorage.setItem(`cached${species}Breeds`, JSON.stringify(simplified));
+        (!USE_SUPABASE_ONLY && localStorage.setItem(`cached${species}Breeds`, JSON.stringify(simplified)));
         return simplified;
       } catch (err) {
         console.error(`Failed to fetch breeds for ${species}:`, err);
@@ -152,8 +169,13 @@
       return context;
     }
 
-    const API_BASE_URL = 'https://pawfeedmobile.onrender.com';
+    // To test locally with your node server, uncomment the localhost line below:
+    const API_BASE_URL = 'http://localhost:5000';
+    // const API_BASE_URL = 'https://pawfeedmobile.onrender.com';
     let currentUser = null;
+    let currentHouseholdId = null;
+    let activePlanPet = 0;
+    let _dummyPurgedThisSession = false;
     let pawCache = {
       pets: [],
       logs: [],
@@ -187,6 +209,40 @@
       tasks: []
     };
 
+    function loadLocalCache() {
+      try {
+        // Clear all local storage data once for v5 to wipe any lingering dummy pets
+        if (!localStorage.getItem('dummy_purged_v5')) {
+          const keys = ['pawPets', 'pawLog', 'pawStock', 'pawSettings', 'pawActivePet', 'pawExpenses', 'pawCart', 'pawScanHistory', 'pawOrders', 'pawRecipeFavorites', 'pawCustomRecipes', 'pawMoodLog', 'pawMeds', 'pawVetLog', 'pawSleepLog', 'pawWeightHistory', 'pawGallery', 'pawRecipeMemory', 'pawWeeklyPlan'];
+          keys.forEach(k => localStorage.removeItem(k));
+          localStorage.setItem('dummy_purged_v5', 'true');
+        }
+        pawCache.pets = JSON.parse((USE_SUPABASE_ONLY ? null : localStorage.getItem('pawPets')) || '[]');
+        pawCache.logs = JSON.parse((USE_SUPABASE_ONLY ? null : localStorage.getItem('pawLog')) || '[]');
+        pawCache.stock = JSON.parse((USE_SUPABASE_ONLY ? null : localStorage.getItem('pawStock')) || '[]');
+        pawCache.settings = JSON.parse((USE_SUPABASE_ONLY ? null : localStorage.getItem('pawSettings')) || '{}');
+        pawCache.activePetIdx = parseInt((USE_SUPABASE_ONLY ? null : localStorage.getItem('pawActivePet')) || '0');
+        pawCache.expenses = JSON.parse((USE_SUPABASE_ONLY ? null : localStorage.getItem('pawExpenses')) || '[]');
+        pawCache.cart = JSON.parse((USE_SUPABASE_ONLY ? null : localStorage.getItem('pawCart')) || '[]');
+        pawCache.scanHistory = JSON.parse((USE_SUPABASE_ONLY ? null : localStorage.getItem('pawScanHistory')) || '[]');
+        pawCache.orders = JSON.parse((USE_SUPABASE_ONLY ? null : localStorage.getItem('pawOrders')) || '[]');
+        pawCache.recipeFavorites = JSON.parse((USE_SUPABASE_ONLY ? null : localStorage.getItem('pawRecipeFavorites')) || '[]');
+        pawCache.customRecipes = JSON.parse((USE_SUPABASE_ONLY ? null : localStorage.getItem('pawCustomRecipes')) || '[]');
+        pawCache.moodLog = JSON.parse((USE_SUPABASE_ONLY ? null : localStorage.getItem('pawMoodLog')) || '[]');
+        pawCache.meds = JSON.parse((USE_SUPABASE_ONLY ? null : localStorage.getItem('pawMeds')) || '[]');
+        pawCache.vetLog = JSON.parse((USE_SUPABASE_ONLY ? null : localStorage.getItem('pawVetLog')) || '[]');
+        pawCache.sleepLog = JSON.parse((USE_SUPABASE_ONLY ? null : localStorage.getItem('pawSleepLog')) || '[]');
+        pawCache.weightHistory = JSON.parse((USE_SUPABASE_ONLY ? null : localStorage.getItem('pawWeightHistory')) || '{}');
+        pawCache.gallery = JSON.parse((USE_SUPABASE_ONLY ? null : localStorage.getItem('pawGallery')) || '{}');
+        const memory = JSON.parse((USE_SUPABASE_ONLY ? null : localStorage.getItem('pawRecipeMemory')) || 'null');
+        if (memory) pawCache.recipes = memory;
+        const weekly = JSON.parse((USE_SUPABASE_ONLY ? null : localStorage.getItem('pawWeeklyPlan')) || 'null');
+        if (weekly) pawCache.weeklyPlan = weekly;
+      } catch (err) {
+        console.error("Error loading local cache:", err);
+      }
+    }
+
     async function fetchAllDataFromSupabase() {
       if (!window.supabaseClient || !currentUser) return;
       const userId = currentUser.id;
@@ -194,15 +250,27 @@
       showToast("Syncing with cloud... ☁️");
       
       try {
+        // First get the household ID
+        const { data: profileData } = await window.supabaseClient.from('user_profiles').select('*').eq('id', userId).maybeSingle();
+        if (profileData && profileData.household_id) {
+          currentHouseholdId = profileData.household_id;
+        } else {
+          currentHouseholdId = userId; // Fallback to user_id if migration not fully complete
+        }
+        
+        // Render it in Profile tab
+        const hhDisplay = document.getElementById('householdIdDisplay');
+        if (hhDisplay) hhDisplay.value = currentHouseholdId;
+
         const [
           petsRes, logsRes, stockRes, expensesRes, postsRes, cartRes, scansRes, tasksRes, ordersRes,
-          moodsRes, medsRes, vetsRes, sleepsRes, galleryRes, weightsRes, recipesRes, profileRes
+          moodsRes, medsRes, vetsRes, sleepsRes, galleryRes, weightsRes, recipesRes
         ] = await Promise.all([
           window.supabaseClient.from('pets').select('*').eq('user_id', userId),
           window.supabaseClient.from('feeding_logs').select('*').eq('user_id', userId),
           window.supabaseClient.from('stock_items').select('*').eq('user_id', userId),
           window.supabaseClient.from('expenses').select('*').eq('user_id', userId),
-          window.supabaseClient.from('community_posts').select('*'),
+          window.supabaseClient.from('community_posts').select('*').order('id', { ascending: false }),
           window.supabaseClient.from('cart_items').select('*').eq('user_id', userId),
           window.supabaseClient.from('scan_history').select('*').eq('user_id', userId),
           window.supabaseClient.from('care_tasks').select('*').eq('user_id', userId),
@@ -213,9 +281,10 @@
           window.supabaseClient.from('sleep_logs').select('*').eq('user_id', userId),
           window.supabaseClient.from('pet_gallery').select('*').eq('user_id', userId),
           window.supabaseClient.from('weight_history').select('*').eq('user_id', userId),
-          window.supabaseClient.from('custom_recipes').select('*').eq('user_id', userId),
-          window.supabaseClient.from('user_profiles').select('*').eq('id', userId).maybeSingle()
+          window.supabaseClient.from('custom_recipes').select('*').eq('user_id', userId)
         ]);
+
+        const profileRes = { data: profileData }; // Keep reference for later logic
 
         if (petsRes.data) {
           pawCache.pets = petsRes.data.map(p => {
@@ -227,9 +296,11 @@
               age: parseFloat(p.age),
               weight: parseFloat(p.weight),
               foodPref: p.food_pref,
-              health: p.health,
-              waterGoal: parseFloat(p.water_goal),
-              activityLevel: p.activity_level,
+              health: p.health || '',
+              waterGoal: parseFloat(p.water_goal) || 500,
+              activityLevel: p.activity_level || 'Moderate (Normal)',
+              color: p.color || '#FFD5A8',
+              avatar: p.avatar || null,
               breedTraits: p.breed_traits || null
             };
             if (!petObj.breedTraits && (p.species === 'Dog' || p.species === 'Cat') && breedCache[p.species]) {
@@ -399,18 +470,51 @@
           pawCache.settings = p.settings || {};
           if (typeof pawCache.settings.active_pet_idx === 'number') {
             pawCache.activePetIdx = pawCache.settings.active_pet_idx;
-            localStorage.setItem('pawActivePet', String(pawCache.settings.active_pet_idx));
+            (!USE_SUPABASE_ONLY && localStorage.setItem('pawActivePet', String(pawCache.settings.active_pet_idx)));
           }
           pawCache.recipeFavorites = pawCache.recipes.recipeFavoritesList || [];
           pawCache.deletedRecipes = pawCache.recipes.deletedRecipesList || [];
           pawCache.editedRecipes = pawCache.recipes.editedRecipesMap || {};
           if (p.avatar_url) {
-            localStorage.setItem('pawUserAvatar', p.avatar_url);
+            (!USE_SUPABASE_ONLY && localStorage.setItem('pawUserAvatar', p.avatar_url));
           }
         }
 
         if (tasksRes.data) {
-          pawCache.tasks = tasksRes.data.map(t => t.payload);
+          pawCache.tasks = tasksRes.data.map(t => ({
+            id: t.id,
+            petIdx: 0,
+            title: t.text,
+            completed: t.completed,
+            dateTime: t.date
+          }));
+        }
+
+        // ONE-TIME PURGE OF DUMMY DATA - uses session flag (safe for USE_SUPABASE_ONLY mode)
+        if (!_dummyPurgedThisSession && !localStorage.getItem('dummy_purged_v4')) {
+          _dummyPurgedThisSession = true;
+          localStorage.setItem('dummy_purged_v4', 'true');
+          // Remove old purge keys too
+          localStorage.removeItem('dummy_purged_v3');
+          console.log("Purging old dummy data v4 (one-time)...");
+          
+          pawCache.stockItems = [];
+          localStorage.removeItem('pawStock');
+          if (typeof saveStockItems === 'function') saveStockItems([]);
+
+          pawCache.expenses = [];
+          localStorage.removeItem('pawExpenses');
+          
+          pawCache.weeklyPlan = {
+            Mon: { breakfast: null, lunch: null, dinner: null },
+            Tue: { breakfast: null, lunch: null, dinner: null },
+            Wed: { breakfast: null, lunch: null, dinner: null },
+            Thu: { breakfast: null, lunch: null, dinner: null },
+            Fri: { breakfast: null, lunch: null, dinner: null },
+            Sat: { breakfast: null, lunch: null, dinner: null },
+            Sun: { breakfast: null, lunch: null, dinner: null }
+          };
+          if (typeof saveWeeklyPlan === 'function') saveWeeklyPlan(pawCache.weeklyPlan);
         }
 
       } catch (err) {
@@ -433,7 +537,7 @@
       // Set up fallbacks for development (localhost & local network IP) and production (Render)
       const urlsToTry = [
         `http://localhost:5000${endpoint}`,
-        `http://192.168.1.10:5000${endpoint}`,
+        `http://10.125.108.69:5000${endpoint}`,
         `https://pawfeedmobile.onrender.com${endpoint}`
       ];
 
@@ -495,6 +599,8 @@
       { id: 'rabbit1', pet: 'Rabbit', icon: '🥕', name: 'Fresh Hay Mix', desc: 'Fiber-focused hay blend for rabbits.', price: 299 },
       { id: 'bird1', pet: 'Bird', icon: '🦜', name: 'Seed & Pellet Mix', desc: 'Daily balanced feed for birds.', price: 249 },
       { id: 'fish1', pet: 'Fish', icon: '🐟', name: 'Floating Fish Pellets', desc: 'Clean-water formula fish pellets.', price: 179 },
+      { id: 'hamster1', pet: 'Hamster', icon: '🐹', name: 'Hamster Grain Mix', desc: 'Balanced grain & seed blend for hamsters.', price: 149 },
+      { id: 'hamster2', pet: 'Hamster', icon: '🌾', name: 'Hamster Chew Sticks', desc: 'Natural wood chew sticks for dental health.', price: 99 },
       { id: 'all1', pet: 'All', icon: '💧', name: 'Travel Water Bottle', desc: 'Portable water bottle for pets.', price: 229 }
     ];
 
@@ -642,7 +748,7 @@
 
     async function savePets(pets) {
       pawCache.pets = pets;
-      localStorage.setItem('pawPets', JSON.stringify(pets));
+      (!USE_SUPABASE_ONLY && localStorage.setItem('pawPets', JSON.stringify(pets)));
       if (!window.supabaseClient || !currentUser) return;
       const userId = currentUser.id;
       try {
@@ -656,6 +762,7 @@
         }
         for (let i = 0; i < pets.length; i++) {
           const p = pets[i];
+          // Only include columns that actually exist in the pets table schema
           const payload = {
             user_id: userId,
             name: p.name,
@@ -671,23 +778,39 @@
           };
           if (p.id) payload.id = p.id;
           const { data, error } = await window.supabaseClient.from('pets').upsert(payload).select('id').single();
-          if (!error && data) p.id = data.id;
+          if (error) {
+            console.error('Error saving pet to Supabase:', error.message, payload);
+          } else if (data) {
+            p.id = data.id;
+            // Update local cache with the assigned ID
+            pets[i] = p;
+          }
         }
+        // Save updated pets (with IDs) back to localStorage
+        (!USE_SUPABASE_ONLY && localStorage.setItem('pawPets', JSON.stringify(pets)));
+        pawCache.pets = pets;
       } catch (err) {
         console.error("Error syncing pets to Supabase:", err);
       }
     }
 
     function getActivePetIdx() {
-      if (typeof pawCache.activePetIdx === 'number') return pawCache.activePetIdx;
-      const stored = localStorage.getItem('pawActivePet');
-      pawCache.activePetIdx = stored ? parseInt(stored) : 0;
-      return pawCache.activePetIdx;
+      let idx = 0;
+      if (typeof pawCache.activePetIdx === 'number') idx = pawCache.activePetIdx;
+      else {
+        const stored = (USE_SUPABASE_ONLY ? null : localStorage.getItem('pawActivePet'));
+        pawCache.activePetIdx = stored ? parseInt(stored) : 0;
+        idx = pawCache.activePetIdx;
+      }
+      const len = pawCache.pets ? pawCache.pets.length : 0;
+      if (len > 0 && idx >= len) idx = len - 1;
+      if (idx < 0) idx = 0;
+      return idx;
     }
 
     async function setActivePetIdx(i) {
       pawCache.activePetIdx = i;
-      localStorage.setItem('pawActivePet', String(i));
+      (!USE_SUPABASE_ONLY && localStorage.setItem('pawActivePet', String(i)));
       if (!window.supabaseClient || !currentUser) return;
       const userId = currentUser.id;
       try {
@@ -716,7 +839,7 @@
 
     async function saveLog(log) {
       pawCache.logs = log;
-      localStorage.setItem('pawLog', JSON.stringify(log));
+      (!USE_SUPABASE_ONLY && localStorage.setItem('pawLog', JSON.stringify(log)));
       if (!window.supabaseClient || !currentUser) return;
       const userId = currentUser.id;
       try {
@@ -745,7 +868,7 @@
 
     async function saveSettings(s) {
       pawCache.settings = s;
-      localStorage.setItem('pawSettings', JSON.stringify(s));
+      (!USE_SUPABASE_ONLY && localStorage.setItem('pawSettings', JSON.stringify(s)));
       if (!window.supabaseClient || !currentUser) return;
       const userId = currentUser.id;
       try {
@@ -778,6 +901,7 @@
     });
 
     async function initApp() {
+      loadLocalCache();
       await loadReferenceDatasets();
       // Apply dark mode
       const s = getSettings();
@@ -793,8 +917,19 @@
           const { data: { session }, error } = await window.supabaseClient.auth.getSession();
           if (session) {
             currentUser = session.user;
+            if (window.initPushNotifications) window.initPushNotifications(currentUser.id);
             loadApp();
             if (s.reminders) startAllReminders();
+            // Sync with cloud in background
+            fetchAllDataFromSupabase().then(() => {
+              refreshAllUI();
+              initCalendar();
+            });
+            
+            // Setup Supabase Realtime for Community Feed
+            setupRealtimeSubscriptions();
+            
+            return;
             return;
           }
         } catch (e) {
@@ -802,6 +937,73 @@
         }
       }
       showScreen('loginScreen');
+    }
+
+    // --- REALTIME SUBSCRIPTIONS ---
+    let communityChannel = null;
+    function setupRealtimeSubscriptions() {
+      if (!window.supabaseClient || !currentUser) return;
+      if (communityChannel) return; // already setup
+      
+      communityChannel = window.supabaseClient.channel('public:community_events')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'community_posts' }, async (payload) => {
+          // Instead of manually merging complex logic, we can just refetch all posts to ensure consistency
+          const { data, error } = await window.supabaseClient.from('community_posts').select('*').order('id', { ascending: false });
+          if (!error && data) {
+            pawCache.communityPosts = data;
+            if (document.getElementById('communityFeedBox')) {
+              renderCommunity();
+            }
+          }
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'community_comments' }, (payload) => {
+          // If the comments modal is currently open for the post that received a comment, refresh it
+          if (currentCommentPostId && (payload.new?.post_id === currentCommentPostId || payload.old?.post_id === currentCommentPostId)) {
+            fetchCommunityComments(currentCommentPostId);
+          }
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'direct_messages' }, (payload) => {
+          if (!currentUser) return;
+          // Only refresh if the message involves the current user
+          const msg = payload.new;
+          if (msg && (msg.sender_id === currentUser.id || msg.receiver_id === currentUser.id)) {
+            // If viewing the inbox, refresh it
+            if (!document.getElementById('dmInboxView').classList.contains('hidden')) {
+              fetchDMInbox();
+            }
+            // If viewing the chat with this specific user, refresh it
+            if (currentDMChatUserId && (msg.sender_id === currentDMChatUserId || msg.receiver_id === currentDMChatUserId)) {
+              fetchDMChat(currentDMChatUserId);
+            }
+          }
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'care_tasks' }, async (payload) => {
+          if (!currentHouseholdId) return;
+          // Filter out tasks that aren't for this household (since realtime might catch others if RLS isn't fully locking it)
+          if (payload.new && payload.new.household_id !== currentHouseholdId) return;
+          
+          const { data, error } = await window.supabaseClient.from('care_tasks').select('*').eq('household_id', currentHouseholdId);
+          if (!error && data) {
+            pawCache.tasks = data.map(t => {
+              const petIdx = pawCache.pets.findIndex(p => p.id === t.pet_id);
+              return {
+                id: t.id,
+                petIdx: petIdx >= 0 ? petIdx : 0,
+                title: t.text,
+                completed: t.completed,
+                dateTime: t.date
+              };
+            });
+            if (document.getElementById('careplannerTab') && !document.getElementById('careplannerTab').classList.contains('hidden')) {
+               renderCarePlanner();
+            }
+          }
+        })
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            console.log("Subscribed to Realtime community events");
+          }
+        });
     }
 
     // ==================== DARK MODE ====================
@@ -873,74 +1075,207 @@
       document.getElementById(id).classList.remove('hidden');
     }
 
+    function normalizeEmail(email) {
+      return (email || '').trim().toLowerCase();
+    }
+
+    function isValidEmailFormat(email) {
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    }
+
+    async function validateRealEmail(email) {
+      try {
+        const res = await fetch('https://disposable.debounce.io/?email=' + encodeURIComponent(email));
+        const json = await res.json();
+        return json.disposable !== 'true';
+      } catch (err) {
+        console.warn('Email verification check failed, allowing proceed', err);
+        return true;
+      }
+    }
+
+    function getStoredAuthUsers() {
+      try {
+        const raw = localStorage.getItem('pawfeedAuthUsers');
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (err) {
+        console.warn('Unable to read stored auth users:', err);
+        return [];
+      }
+    }
+
+    function saveStoredAuthUsers(users) {
+      localStorage.setItem('pawfeedAuthUsers', JSON.stringify(users));
+    }
+
+    function findStoredAuthUser(email) {
+      const normalizedEmail = normalizeEmail(email);
+      return getStoredAuthUsers().find(user => normalizeEmail(user.email) === normalizedEmail);
+    }
+
+    function createStoredAuthUser(name, email, password) {
+      const users = getStoredAuthUsers();
+      const newUser = {
+        id: `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        name,
+        email: normalizeEmail(email),
+        password
+      };
+      users.push(newUser);
+      saveStoredAuthUsers(users);
+      return newUser;
+    }
+
     async function registerUser() {
       const name = document.getElementById('regName').value.trim();
       const email = document.getElementById('regEmail').value.trim();
       const password = document.getElementById('regPassword').value.trim();
       if (!name || !email || !password) { showToast('Please fill all fields'); return; }
-      
-      showToast("Creating account... 🐾");
-      if (!window.supabaseClient) {
-        showToast("Supabase client is not initialized.");
+
+      if (!isValidEmailFormat(email)) {
+        showToast('Invalid email format. Please enter a correct email address.');
+        return;
+      }
+
+      showToast("Verifying email... 🐾");
+      const isRealEmail = await validateRealEmail(email);
+      if (!isRealEmail) {
+        showToast('Please enter a real, original email address. Fake or disposable emails are not allowed.', 4000);
+        return;
+      }
+
+      if (findStoredAuthUser(email)) {
+        showToast('This email is already registered. Please use a different email or log in instead.');
         return;
       }
       
-      try {
-        const { data, error } = await window.supabaseClient.auth.signUp({
-          email,
-          password,
-          options: {
-            data: { display_name: name }
+      // Strong password validation
+      const strongPasswordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+      if (!strongPasswordRegex.test(password)) {
+        showToast('Password must be at least 8 chars with uppercase, lowercase, number, and special character.', 4000);
+        return;
+      }
+      
+      showToast("Creating account... 🐾");
+
+      if (window.supabaseClient) {
+        try {
+          const { data, error } = await window.supabaseClient.auth.signUp({
+            email,
+            password,
+            options: {
+              data: { display_name: name }
+            }
+          });
+
+          if (error) {
+            if (findStoredAuthUser(email) || (error.message || '').toLowerCase().includes('already registered') || (error.message || '').toLowerCase().includes('already exists')) {
+              showToast('This email is already registered. Please use a different email or log in instead.');
+            } else {
+              showToast('Unable to register this email. Please use a valid email address.');
+            }
+            return;
           }
-        });
-        if (error) {
-          showToast(`Error: ${error.message}`);
-          return;
-        }
-        
-        if (data.user) {
+
+          if (!data.user) {
+            showToast('Unable to register this email. Please try again.');
+            return;
+          }
+
+          createStoredAuthUser(name, email, password);
+
           const { error: profileError } = await window.supabaseClient.from('user_profiles').upsert({
             id: data.user.id,
             settings: {},
             daily_checklist: {}
           });
           if (profileError) {
-            console.error("Profile creation error:", profileError.message);
+            console.warn('Profile creation warning:', profileError.message);
           }
+        } catch (err) {
+          showToast('Unable to register this email. Please try again.');
+          return;
         }
-        
-        showToast('Account created! Please check your email or log in.');
-        showScreen('loginScreen');
-      } catch (err) {
-        showToast(`Sign up failed: ${err.message}`);
+      } else {
+        createStoredAuthUser(name, email, password);
       }
+
+      showToast('Registration successful! You can now log in.');
+      showScreen('loginScreen');
     }
 
     async function loginUser() {
       const email = document.getElementById('loginEmail').value.trim();
       const password = document.getElementById('loginPassword').value.trim();
       if (!email || !password) { showToast('Please fill all fields'); return; }
-      
-      showToast("Logging in... 🐾");
-      if (!window.supabaseClient) {
-        showToast("Supabase client is not initialized.");
+
+      if (!isValidEmailFormat(email)) {
+        showToast('Invalid email format. Please enter a correct email address.');
         return;
       }
+
+      showToast("Verifying email... 🐾");
+      try {
+        const res = await fetch('https://disposable.debounce.io/?email=' + encodeURIComponent(email));
+        const json = await res.json();
+        if (json.disposable === "true") {
+          showToast('Please enter a real, original email address. Fake or disposable emails are not allowed.', 4000);
+          return;
+        }
+      } catch(e) {
+        console.log("Email verification check failed, allowing proceed", e);
+      }
       
+      showToast("Logging in... 🐾");
+      const storedUser = findStoredAuthUser(email);
+      if (storedUser && storedUser.password === password) {
+        currentUser = {
+          id: storedUser.id,
+          email: storedUser.email,
+          name: storedUser.name,
+          isLocalAuth: true
+        };
+        localStorage.setItem('pawfeedCurrentUser', JSON.stringify(currentUser));
+        if (window.initPushNotifications) window.initPushNotifications(currentUser.id);
+        loadApp();
+        if (window.supabaseClient) {
+          fetchAllDataFromSupabase().then(() => {
+            refreshAllUI();
+            initCalendar();
+          });
+        } else {
+          refreshAllUI();
+          initCalendar();
+        }
+        return;
+      }
+
+      if (!window.supabaseClient) {
+        showToast('Incorrect email or password.');
+        return;
+      }
+
       try {
         const { data, error } = await window.supabaseClient.auth.signInWithPassword({
           email,
           password
         });
         if (error) {
-          showToast(`Error: ${error.message}`);
+          showToast('Incorrect email or password.');
           return;
         }
-        
+
         currentUser = data.user;
+        if (window.initPushNotifications) window.initPushNotifications(currentUser.id);
         loadApp();
+        fetchAllDataFromSupabase().then(() => {
+          refreshAllUI();
+          initCalendar();
+        });
       } catch (err) {
-        showToast(`Login failed: ${err.message}`);
+        showToast('Incorrect email or password.');
       }
     }
 
@@ -950,6 +1285,8 @@
           await window.supabaseClient.auth.signOut();
         }
         currentUser = null;
+        const keys = ['pawPets', 'pawLog', 'pawStock', 'pawSettings', 'pawActivePet', 'pawExpenses', 'pawCart', 'pawScanHistory', 'pawOrders', 'pawRecipeFavorites', 'pawCustomRecipes', 'pawMoodLog', 'pawMeds', 'pawVetLog', 'pawSleepLog', 'pawWeightHistory', 'pawGallery', 'pawRecipeMemory', 'pawWeeklyPlan'];
+        keys.forEach(k => localStorage.removeItem(k));
         location.reload();
       });
     }
@@ -1002,7 +1339,7 @@
       document.getElementById('profileEmail').value = user.email || '';
 
       // Load user avatar
-      const avatar = localStorage.getItem('pawUserAvatar');
+      const avatar = (USE_SUPABASE_ONLY ? null : localStorage.getItem('pawUserAvatar'));
       const preview = document.getElementById('userAvatarPreview');
       const topCircle = document.getElementById('topProfileCircle');
       if (avatar) {
@@ -1011,11 +1348,61 @@
       }
     }
 
+    function copyHouseholdId() {
+      const id = document.getElementById('householdIdDisplay').value;
+      if (!id) return;
+      navigator.clipboard.writeText(id).then(() => {
+        showToast("Household ID copied to clipboard!");
+      });
+    }
+
+    async function joinHousehold() {
+      const input = document.getElementById('joinHouseholdInput').value.trim();
+      if (!input) { showToast("Please paste a Household ID"); return; }
+      if (!window.supabaseClient || !currentUser) return;
+      
+      try {
+        const { error } = await window.supabaseClient.from('user_profiles').update({
+          household_id: input
+        }).eq('id', currentUser.id);
+        
+        if (error) throw error;
+        
+        showToast("Joined new Household! 🏠 Syncing data...");
+        document.getElementById('joinHouseholdInput').value = '';
+        currentHouseholdId = input;
+        document.getElementById('householdIdDisplay').value = currentHouseholdId;
+        
+        // Re-sync all data
+        await fetchAllDataFromSupabase();
+        refreshAllUI();
+      } catch (e) {
+        console.error(e);
+        showToast("Failed to join household. Invalid ID?");
+      }
+    }
+
     async function saveProfile() {
       const user = getUser() || {};
       const newName = document.getElementById('profileName').value.trim();
       user.name = newName;
-      localStorage.setItem('pawUser', JSON.stringify(user));
+      (!USE_SUPABASE_ONLY && localStorage.setItem('pawUser', JSON.stringify(user)));
+      
+      // Update local mock auth if present to ensure name changes persist
+      const storedCurrent = localStorage.getItem('pawfeedCurrentUser');
+      if (storedCurrent) {
+        let currentAuth = JSON.parse(storedCurrent);
+        currentAuth.name = newName;
+        localStorage.setItem('pawfeedCurrentUser', JSON.stringify(currentAuth));
+        
+        let users = JSON.parse(localStorage.getItem('pawAuthUsers') || '[]');
+        let idx = users.findIndex(u => u.email === currentAuth.email);
+        if (idx !== -1) {
+          users[idx].name = newName;
+          localStorage.setItem('pawAuthUsers', JSON.stringify(users));
+        }
+      }
+      
       loadUser();
       showToast('Profile updated ✅');
       if (!window.supabaseClient || !currentUser) return;
@@ -1029,28 +1416,55 @@
     }
 
     // ==================== USER AVATAR ====================
-    function handleUserAvatar(event) {
+    async function handleUserAvatar(event) {
       const file = event.target.files[0];
       if (!file) return;
-      const reader = new FileReader();
-      reader.onload = async function (e) {
-        const data = e.target.result;
-        localStorage.setItem('pawUserAvatar', data);
-        document.getElementById('userAvatarPreview').innerHTML = `<img src="${data}" alt="avatar">`;
-        document.getElementById('topProfileCircle').innerHTML = `<img src="${data}" alt="avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
+      
+      if (!USE_SUPABASE_ONLY && (!window.supabaseClient || !currentUser)) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          const data = e.target.result;
+          localStorage.setItem('pawUserAvatar', data);
+          document.getElementById('userAvatarPreview').innerHTML = `<img src="${data}" alt="avatar">`;
+          document.getElementById('topProfileCircle').innerHTML = `<img src="${data}" alt="avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
+          showToast('Profile photo updated! ✅');
+        };
+        reader.readAsDataURL(file);
+        return;
+      }
+      
+      showToast('Uploading avatar... ⏳');
+      const userId = currentUser.id;
+      const fileExt = file.name.split('.').pop();
+      const fileName = `user_${userId}_${Date.now()}.${fileExt}`;
+      
+      try {
+        const { error: uploadError } = await window.supabaseClient.storage
+          .from('avatars')
+          .upload(fileName, file, { cacheControl: '3600', upsert: false });
+
+        if (uploadError) throw uploadError;
+
+        const { data: publicUrlData } = window.supabaseClient.storage
+          .from('avatars')
+          .getPublicUrl(fileName);
+
+        const avatarUrl = publicUrlData.publicUrl;
+
+        await window.supabaseClient.from('user_profiles').upsert({
+          id: userId,
+          avatar_url: avatarUrl
+        });
+
+        document.getElementById('userAvatarPreview').innerHTML = `<img src="${avatarUrl}" alt="avatar">`;
+        document.getElementById('topProfileCircle').innerHTML = `<img src="${avatarUrl}" alt="avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
+        (!USE_SUPABASE_ONLY && localStorage.setItem('pawUserAvatar', avatarUrl));
         showToast('Profile photo updated! ✅');
-        if (!window.supabaseClient || !currentUser) return;
-        const userId = currentUser.id;
-        try {
-          await window.supabaseClient.from('user_profiles').upsert({
-            id: userId,
-            avatar_url: data
-          });
-        } catch (err) {
-          console.error("Error updating user avatar in user_profiles:", err);
-        }
-      };
-      reader.readAsDataURL(file);
+
+      } catch (err) {
+        console.error("Error updating user avatar:", err);
+        showToast('Error uploading avatar ❌');
+      }
     }
 
     // ==================== NO PET TOGGLE ====================
@@ -1058,7 +1472,7 @@
       const checked = document.getElementById('noPetCheck').checked;
       if (!pawCache.settings) pawCache.settings = {};
       pawCache.settings.noPet = checked;
-      localStorage.setItem('pawNoPet', checked ? 'true' : 'false');
+      saveSettings(pawCache.settings);
       showToast(checked ? 'Browsing general tips mode' : 'Pet mode enabled');
       refreshAllUI();
       if (!window.supabaseClient || !currentUser) return;
@@ -1131,16 +1545,46 @@
       if (el) el.textContent = PET_ICONS[type] || '🐾';
     }
 
-    function handleModalAvatar(event) {
+    async function handleModalAvatar(event) {
       const file = event.target.files[0];
       if (!file) return;
-      const reader = new FileReader();
-      reader.onload = function (e) {
+
+      if (!USE_SUPABASE_ONLY && (!window.supabaseClient || !currentUser)) {
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          const prev = document.getElementById('modalAvatarPreview');
+          prev.innerHTML = `<img src="${e.target.result}" alt="pet avatar">`;
+          prev._avatarData = e.target.result;
+        };
+        reader.readAsDataURL(file);
+        return;
+      }
+      
+      showToast('Uploading pet avatar... ⏳');
+      const userId = currentUser.id;
+      const fileExt = file.name.split('.').pop();
+      const fileName = `pet_${userId}_${Date.now()}.${fileExt}`;
+      
+      try {
+        const { error: uploadError } = await window.supabaseClient.storage
+          .from('avatars')
+          .upload(fileName, file, { cacheControl: '3600', upsert: false });
+
+        if (uploadError) throw uploadError;
+
+        const { data: publicUrlData } = window.supabaseClient.storage
+          .from('avatars')
+          .getPublicUrl(fileName);
+
+        const avatarUrl = publicUrlData.publicUrl;
         const prev = document.getElementById('modalAvatarPreview');
-        prev.innerHTML = `<img src="${e.target.result}" alt="pet avatar">`;
-        prev._avatarData = e.target.result;
-      };
-      reader.readAsDataURL(file);
+        prev.innerHTML = `<img src="${avatarUrl}" alt="pet avatar">`;
+        prev._avatarData = avatarUrl;
+        showToast('Pet avatar uploaded! ✅');
+      } catch (err) {
+        console.error("Error uploading pet avatar:", err);
+        showToast('Error uploading pet avatar ❌');
+      }
     }
 
     function selectColor(color, el) {
@@ -1184,6 +1628,7 @@
       const existingAvatar = idx >= 0 ? existingPets[idx]?.avatar : null;
 
       const pet = {
+        id: idx >= 0 ? existingPets[idx]?.id : undefined,
         name: document.getElementById('mpetName').value.trim(),
         type: document.getElementById('mpetType').value,
         breed: document.getElementById('mpetBreed').value,
@@ -1231,7 +1676,7 @@
       if (!pawCache.settings) pawCache.settings = {};
       if (pawCache.settings.noPet !== false) {
         pawCache.settings.noPet = false;
-        localStorage.setItem('pawNoPet', 'false');
+        saveSettings(pawCache.settings);
         if (window.supabaseClient && currentUser) {
           const userId = currentUser.id;
           window.supabaseClient.from('user_profiles').upsert({
@@ -1544,7 +1989,7 @@
 
     async function saveCareTasks(tasks) {
       pawCache.tasks = tasks;
-      localStorage.setItem('pawCareTasks', JSON.stringify(tasks));
+      (!USE_SUPABASE_ONLY && localStorage.setItem('pawCareTasks', JSON.stringify(tasks)));
       if (!window.supabaseClient || !currentUser) return;
       const userId = currentUser.id;
       try {
@@ -2012,7 +2457,7 @@
                 <div>
                   <b style="font-size:14px;color:var(--dark)">${t.title}</b>
                   <div style="font-size:11px;color:var(--muted);margin-top:2px;display:flex;align-items:center;gap:6px">
-                    <span>📅 ${dateLabelStr}</span>
+                    <span>🗓️ ${dateLabelStr}</span>
                     ${repeatLabel}
                     <span>${t.reminder ? '🔔' : ''}</span>
                   </div>
@@ -2055,27 +2500,57 @@
 
       document.getElementById('noPetCheck').checked = noPet;
 
+      // === PHASE 1: Render instantly (home tab - what user sees immediately) ===
       renderPetList();
       renderHomePreview(pets, activeIdx, noPet);
-      renderPlanTab(pets, activeIdx, noPet);
-      renderTrackerTab(pets, activeIdx, noPet);
-      renderRemindersTab(pets, activeIdx, noPet);
-      renderCareTab(pets, activeIdx, noPet);
-      renderHomemadeTab();
-      renderCommunity();
-      renderMarketplace();
-      renderGameTab();
-      renderVisionHistory();
       updateHomeStats(pets, activeIdx, noPet);
+      renderReminderBanner(pets, activeIdx, noPet);
+      renderDailyTip();
 
-      // Custom Widgets Render
-      if (typeof renderDailyChecklist === 'function') renderDailyChecklist();
-      if (typeof renderExpenseTracker === 'function') renderExpenseTracker();
-      if (typeof renderStockTracker === 'function') renderStockTracker();
+      // === PHASE 2: Defer heavy tabs to next frame so UI doesn't freeze ===
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          renderPlanTab(pets, activeIdx, noPet);
+          renderTrackerTab(pets, activeIdx, noPet);
+        }, 0);
+        setTimeout(() => {
+          renderRemindersTab(pets, activeIdx, noPet);
+          renderCareTab(pets, activeIdx, noPet);
+        }, 50);
+        setTimeout(() => {
+          renderHomemadeTab();
+          renderVisionHistory();
+        }, 100);
+        setTimeout(() => {
+          renderCommunity();
+          if (typeof renderCarePlannerTab === 'function') renderCarePlannerTab();
+          renderMarketplace();
+          renderGameTab();
+        }, 150);
+        setTimeout(() => {
+          if (typeof renderDailyChecklist === 'function') renderDailyChecklist();
+          if (typeof renderExpenseTracker === 'function') renderExpenseTracker();
+          if (typeof renderStockTracker === 'function') renderStockTracker();
+        }, 200);
+      });
     }
 
     // ==================== HOME STATS ====================
     function updateHomeStats(pets, activeIdx, noPet) {
+      const statsRow = document.getElementById('homeStatsRow');
+      const streakBanner = document.getElementById('streakBanner');
+      const missedSection = document.getElementById('missedMealsSection');
+
+      // Hide everything if no pets
+      if (!noPet && (!pets || pets.length === 0)) {
+        if (statsRow) statsRow.classList.add('hidden');
+        if (streakBanner) streakBanner.classList.add('hidden');
+        if (missedSection) missedSection.classList.add('hidden');
+        return;
+      }
+
+      if (statsRow) statsRow.classList.remove('hidden');
+
       const stats = getTodayStats();
       document.getElementById('statFeedings').textContent = stats.feedings;
       document.getElementById('statWater').textContent = stats.waterPct + '%';
@@ -2084,23 +2559,29 @@
       // Streak
       const s = getSettings();
       const streak = calculateStreak();
-      const streakBanner = document.getElementById('streakBanner');
       if (streak >= 2 && s.showStreaks !== false && !noPet && pets.length > 0) {
         streakBanner.classList.remove('hidden');
-        document.getElementById('streakCount').textContent = streak;
+        const streakCountEl = document.getElementById('streakCount');
+        streakCountEl.textContent = streak;
         document.getElementById('streakTitle').textContent = streak >= 7 ? '🏆 ' + streak + '-Day Streak!' : '🔥 Feeding Streak!';
         document.getElementById('streakSub').textContent = streak >= 7 ? 'Amazing consistency!' : 'Keep up the great work!';
+        // Shimmer effect for streak >= 7
+        if (streak >= 7) {
+          streakCountEl.classList.add('shimmer-active');
+        } else {
+          streakCountEl.classList.remove('shimmer-active');
+        }
       } else {
         streakBanner.classList.add('hidden');
       }
 
       // Missed meals
       const missed = getMissedMeals();
-      const missedSection = document.getElementById('missedMealsSection');
-      const missedBox = document.getElementById('missedMealsBox');
-      if (missed.length > 0 && !noPet && pets.length > 0) {
-        missedSection.classList.remove('hidden');
-        missedBox.innerHTML = missed.map(m => `
+      if (missedSection) {
+        const missedBox = document.getElementById('missedMealsBox');
+        if (missed.length > 0 && !noPet && pets.length > 0) {
+          missedSection.classList.remove('hidden');
+          missedBox.innerHTML = missed.map(m => `
       <div class="missed-meal-card">
         <div class="missed-icon">${m.icon}</div>
         <div class="missed-meal-info">
@@ -2109,43 +2590,69 @@
         </div>
         <button class="small-btn" onclick="openLogModal('fed')" style="margin:0;font-size:11px">Log Now</button>
       </div>`).join('');
-      } else {
-        missedSection.classList.add('hidden');
+        } else {
+          missedSection.classList.add('hidden');
+        }
       }
     }
 
     // ==================== HOME PREVIEW ====================
     function renderHomePreview(pets, activeIdx, noPet) {
       const preview = document.getElementById('petPreview');
+
       if (noPet) {
         document.getElementById('todayPlan').innerText = 'Browsing general pet care tips.';
-        document.getElementById('healthBadge').innerText = 'General mode';
-        preview.innerHTML = `<div class="empty-state"><p>You're in no-pet mode.</p><button class="primary-btn" onclick="document.getElementById('noPetCheck').checked=false;toggleNoPet()">Enable Pet Mode</button></div>`;
+        document.getElementById('healthBadge').innerText = '✨ General mode';
+        const avatarWrap = document.getElementById('heroAvatarWrap');
+        if (avatarWrap) avatarWrap.innerHTML = '🐾';
+        document.documentElement.style.setProperty('--pet-color', '#F5A623');
+        renderWeeklyPlan();
         return;
       }
       if (pets.length === 0) {
-        document.getElementById('todayPlan').innerText = 'Add your pet profile to get a personalized feeding plan.';
-        document.getElementById('healthBadge').innerText = 'Smart care enabled';
-        preview.innerHTML = `<div class="empty-state"><h3>No pets added yet 🐾</h3><p>Add your first pet to get a personalized feeding plan.</p><button class="primary-btn" onclick="openPetModal(-1)">+ Add My Pet</button></div>`;
+        document.getElementById('todayPlan').innerText = 'Welcome to PawFeed! 🐾';
+        document.getElementById('healthBadge').innerText = '➕ Add your first pet to get started';
+        const avatarWrap = document.getElementById('heroAvatarWrap');
+        if (avatarWrap) avatarWrap.innerHTML = '🐾';
+        document.documentElement.style.setProperty('--pet-color', '#F5A623');
+        if (preview) preview.innerHTML = `
+          <div style="text-align:center; padding: 16px 0">
+            <div style="font-size:48px; margin-bottom:12px">🐾</div>
+            <div style="font-weight:800; font-size:17px; color:var(--dark); margin-bottom:6px">No pets added yet</div>
+            <div style="font-size:13px; color:var(--muted); margin-bottom:16px">Add your pet to get a personalized feeding plan, health tracking, and more!</div>
+            <button class="btn" onclick="openPetModal(-1)" style="font-size:14px; padding:12px 28px">➕ Add My First Pet</button>
+          </div>`;
         return;
       }
       const pet = pets[activeIdx];
-      document.getElementById('todayPlan').innerText = pet.name + '\'s next care plan is ready.';
-      document.getElementById('healthBadge').innerText = pet.health ? 'Health-aware plan' : 'Healthy routine plan';
 
-      const avatarHtml = pet.avatar
-        ? `<img src="${pet.avatar}" alt="${pet.name}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
-        : `<span style="font-size:28px">${PET_ICONS[pet.type] || '🐾'}</span>`;
+      // Set --pet-color CSS variable from pet's stored color
+      const petColor = pet.color || '#F5A623';
+      document.documentElement.style.setProperty('--pet-color', petColor);
+
+      document.getElementById('todayPlan').innerText = pet.name + '\'s next care plan is ready.';
+      document.getElementById('healthBadge').innerText = pet.health ? '🩺 Health-aware plan' : '✨ Healthy routine plan';
+
+      // Hero avatar
+      const avatarWrap = document.getElementById('heroAvatarWrap');
+      if (avatarWrap) {
+        avatarWrap.innerHTML = pet.avatar
+          ? `<img src="${pet.avatar}" alt="${pet.name}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
+          : `<span style="font-size:38px">${PET_ICONS[pet.type] || '🐾'}</span>`;
+        avatarWrap.style.boxShadow = `0 0 30px ${petColor}55`;
+      }
 
       preview.innerHTML = `
-    <div class="pet-profile-header" style="background: #FFD5A8;position:relative;z-index:1">
-        <div class="pet-profile-name">${pet.name} <span class="active-dot" style="background:#fff"></span></div>
+    <div class="pet-profile-header" style="position:relative;z-index:1">
+        <div class="pet-profile-name">${pet.name} <span class="active-dot"></span></div>
         <div class="pet-profile-sub">${pet.type} · ${pet.breed}</div>
         <div class="pet-profile-sub">Age: ${pet.age} yrs · ${pet.weight} kg</div>
-      </div>
-      <button class="small-btn" onclick="openGallery(${activeIdx})" style="background:rgba(255,255,255,0.25);color:white;border:none;font-size:12px">📷 Gallery</button>
+      <button class="small-btn" onclick="openGallery(${activeIdx})" style="margin-top:8px;font-size:12px">📷 Gallery</button>
     </div>
     ${pets.length > 1 ? `<p style="font-size:13px;color:var(--muted);text-align:center;margin-top:4px">+${pets.length - 1} more pet${pets.length > 2 ? 's' : ''} — manage in <b onclick="openTab('profile')" style="cursor:pointer;color:var(--orange)">Profile</b></p>` : ''}`;
+    
+      // Ensure the meal planner is rendered for users with pets too!
+      renderWeeklyPlan();
     }
 
     function shadeColor(color, percent) {
@@ -2155,6 +2662,168 @@
       const G = Math.max(0, Math.min(255, ((num >> 8) & 0x00FF) + amt));
       const B = Math.max(0, Math.min(255, (num & 0x0000FF) + amt));
       return '#' + ((1 << 24) | (R << 16) | (G << 8) | B).toString(16).slice(1);
+    }
+
+    // ==================== HEALTH SCORE ====================
+    function calculateHealthScore() {
+      const pets = getPets();
+      const activeIdx = getActivePetIdx();
+      const pet = pets[activeIdx];
+      if (!pet) return { score: 0, insight: 'Add a pet to see health score', lowestComponent: 'none' };
+
+      const today = todayStr();
+      const log = getLog();
+      const petLog = log.filter(e => e.petIdx === activeIdx);
+
+      // Feeding streak (40pts max)
+      const streak = calculateStreak();
+      const streakPts = Math.min(40, Math.round((streak / 7) * 40));
+
+      // Water goal % (30pts max)
+      const drops = (pet.waterDate === today ? (pet.waterDrops || []) : []).length;
+      const totalDrops = Math.ceil((pet.waterGoal || 500) / 100);
+      const waterPct = totalDrops > 0 ? drops / totalDrops : 0;
+      const waterPts = Math.round(waterPct * 30);
+
+      // Mood positivity (20pts max)
+      const positiveMoods = ['😄 Happy', '😐 Calm'];
+      const mood = pet.moodDate === today ? pet.moodToday : null;
+      const moodPts = mood ? (positiveMoods.includes(mood) ? 20 : 8) : 10;
+
+      // Weight stability (10pts max)
+      const wh = pet.weightHistory || [];
+      let weightPts = 10;
+      if (wh.length >= 2) {
+        const diff = Math.abs(wh[wh.length - 1].weight - wh[wh.length - 2].weight);
+        weightPts = diff > 0.5 ? 5 : 10;
+      }
+
+      const score = streakPts + waterPts + moodPts + weightPts;
+
+      // Determine lowest component for insight
+      const components = [
+        { name: 'feeding streak', pts: streakPts, max: 40, emoji: '🍽️' },
+        { name: 'water intake', pts: waterPts, max: 30, emoji: '💧' },
+        { name: 'mood tracking', pts: moodPts, max: 20, emoji: '😊' },
+        { name: 'weight', pts: weightPts, max: 10, emoji: '⚖️' }
+      ];
+      const lowest = components.reduce((a, b) => (a.pts / a.max) < (b.pts / b.max) ? a : b);
+
+      let insight = '';
+      const petName = pet.name || 'Your pet';
+      if (score >= 80) insight = `${petName} is thriving! 🌟`;
+      else if (score >= 50) insight = `${petName} needs more ${lowest.emoji} ${lowest.name}`;
+      else insight = `Focus on ${petName}'s ${lowest.emoji} ${lowest.name} today`;
+
+      return { score, insight, lowestComponent: lowest.name };
+    }
+
+    // ==================== REMINDER BANNER ====================
+    function renderReminderBanner(pets, activeIdx, noPet) {
+      const container = document.getElementById('reminderBanner');
+      if (!container) return;
+
+      if (noPet || !pets || pets.length === 0) {
+        container.innerHTML = '';
+        return;
+      }
+
+      const now = new Date();
+      const tasks = getCareTasks();
+      const activeTask = tasks
+        .filter(t => {
+          if (t.petIdx !== activeIdx) return false;
+          const dt = new Date(t.dateTime);
+          if (dt <= now) return false;
+          const dateStr = dt.toISOString().slice(0, 10);
+          if (t.completedDates && t.completedDates.includes(dateStr)) return false;
+          return true;
+        })
+        .sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime))[0];
+
+      if (!activeTask) {
+        container.innerHTML = '';
+        return;
+      }
+
+      const pet = pets[activeIdx];
+      const dt = new Date(activeTask.dateTime);
+      const diffMs = dt - now;
+      const diffH = Math.floor(diffMs / 3600000);
+      const diffM = Math.floor((diffMs % 3600000) / 60000);
+      const timeLabel = diffH > 0 ? `in ${diffH}h ${diffM}m` : `in ${diffM}m`;
+
+      container.innerHTML = `
+        <div class="reminder-banner" onclick="openTab('careplanner')">
+          <span class="reminder-banner-icon">⏰</span>
+          <div class="reminder-banner-text">
+            <div class="reminder-banner-title">${pet.name}'s ${activeTask.title}</div>
+            <div class="reminder-banner-sub">${timeLabel} · Tap to open Planner</div>
+          </div>
+          <span style="color:var(--muted);font-size:18px">›</span>
+        </div>`;
+    }
+
+    // ==================== DAILY PET TIP ====================
+    const DAILY_PET_TIPS = [
+      'Always keep fresh water available — change it daily to prevent bacteria.',
+      'Feed pets at consistent times each day to regulate their digestion.',
+      'Avoid giving pets human food without checking if it\'s safe first.',
+      'Regular vet checkups (at least once a year) can catch hidden health issues early.',
+      'Brush your dog\'s teeth 2–3 times a week to prevent dental disease.',
+      'Cats need mental stimulation — rotate toys to keep them engaged.',
+      'Obesity is the #1 preventable health issue in pets — watch portion sizes.',
+      'Never leave pets in a parked car, even for a few minutes.',
+      'Microchipping your pet greatly increases the chance of reunion if lost.',
+      'Spaying/neutering has health and behavioral benefits beyond population control.',
+      'Watch for sudden changes in appetite — it\'s often the first sign of illness.',
+      'Keep toxic plants like lilies, azaleas, and sago palms out of reach.',
+      'Exercise reduces anxiety and destructive behavior in dogs.',
+      'Senior pets (7+) benefit from bi-annual vet visits for early detection.',
+      'Grooming sessions are a great time to check for lumps, ticks, or skin issues.',
+      'Stress in pets can cause digestive issues — keep routines predictable.',
+      'Chocolate, grapes, onions, and xylitol are toxic to dogs.',
+      'Cats are obligate carnivores — they need animal protein in every meal.',
+      'Rabbits need unlimited hay — it keeps their gut moving and teeth worn.',
+      'Birds need 10–12 hours of darkness to sleep properly each night.',
+      'Fish are sensitive to water temperature changes — check daily.',
+      'Use positive reinforcement — reward good behavior with treats or praise.',
+      'Pets pick up on owner stress — your calm energy helps them too.',
+      'Clean food and water bowls daily to prevent bacterial build-up.',
+      'Give your pet a quiet retreat space where they can rest undisturbed.',
+      'A pet\'s nose is always wet — a dry nose may signal dehydration or fever.',
+      'Regular playtime improves cardiovascular health and mood in pets.',
+      'Keep all medications (human and pet) stored away from curious paws.',
+      'Track your pet\'s weight monthly — gradual changes are easy to miss.',
+      'A happy pet shows bright eyes, a shiny coat, and a good appetite.'
+    ];
+
+    function renderDailyTip() {
+      const container = document.getElementById('dailyPetTip');
+      if (!container) return;
+
+      // Don't show tip if no pets added yet
+      const pets = getPets();
+      if (!pets || pets.length === 0) {
+        container.innerHTML = '';
+        return;
+      }
+
+      const now = new Date();
+      const start = new Date(now.getFullYear(), 0, 0);
+      const dayOfYear = Math.floor((now - start) / 86400000);
+      const tipIndex = dayOfYear % DAILY_PET_TIPS.length;
+      const tip = DAILY_PET_TIPS[tipIndex];
+
+      container.innerHTML = `
+        <div class="daily-tip-card">
+          <span class="daily-tip-icon">💡</span>
+          <div class="daily-tip-content">
+            <h4>Daily Pet Tip</h4>
+            <p>${tip}</p>
+            <span class="daily-tip-link" onclick="openTab('care')">Learn more →</span>
+          </div>
+        </div>`;
     }
 
     // ==================== PET LIST ====================
@@ -2337,21 +3006,40 @@
         <button class="small-btn" onclick="document.getElementById('weightModal').classList.remove('hidden')">+ Log</button>
       </div>
       ${wh.length > 0 ? `
-        <div class="weight-chart-wrap">
-          <div class="weight-chart" id="weightChart${petIdx}"></div>
-          <div style="display:flex;justify-content:space-between;margin-top:6px">
-            <span style="font-size:11px;color:var(--muted)">Min: ${Math.min(...wh.map(w => w.weight))} kg</span>
-            <span style="font-size:11px;color:var(--orange);font-weight:800">Latest: ${wh[wh.length - 1].weight} kg</span>
-            <span style="font-size:11px;color:var(--muted)">Max: ${Math.max(...wh.map(w => w.weight))} kg</span>
-          </div>
+        <div class="chartjs-wrap" style="position:relative;height:180px;width:100%;margin-bottom:8px">
+          <canvas id="weightChart${petIdx}"></canvas>
         </div>
-        <div style="max-height:150px;overflow-y:auto;margin-top:8px">
+        <div style="display:flex;justify-content:space-between;margin-top:6px">
+          <span style="font-size:11px;color:var(--muted)">Min: ${Math.min(...wh.map(w => w.weight))} kg</span>
+          <span style="font-size:11px;color:var(--orange);font-weight:800">Latest: ${wh[wh.length - 1].weight} kg</span>
+          <span style="font-size:11px;color:var(--muted)">Max: ${Math.max(...wh.map(w => w.weight))} kg</span>
+        </div>
+        <div style="max-height:130px;overflow-y:auto;margin-top:8px">
           ${wh.slice().reverse().map(w => `<div class="history-item"><div class="history-icon">⚖️</div><div class="history-text"><b>${w.weight} kg</b><span>${formatDate(w.date)}${w.note ? ' — ' + w.note : ''}</span></div></div>`).join('')}
         </div>` : '<p style="font-size:13px;color:var(--muted)">No weight entries yet. Log your pet\'s weight to see the chart.</p>'}
     </div>
 
+    <!-- MOOD BREAKDOWN CHART -->
+    ${(getLog().filter(e => e.petIdx === petIdx && e.type === 'mood').length > 0) ? `
+    <div class="card">
+      <h3 style="font-weight:900;margin-bottom:12px">📊 Mood Breakdown (Last 30)</h3>
+      <div class="chartjs-wrap" style="position:relative;height:200px;width:100%">
+        <canvas id="moodChart${petIdx}"></canvas>
+      </div>
+    </div>` : ''}
+
+    <!-- SLEEP CHART -->
+    ${(getSleepLog ? getSleepLog().length > 0 : false) ? `
+    <div class="card">
+      <h3 style="font-weight:900;margin-bottom:12px">💤 Sleep This Week</h3>
+      <div class="chartjs-wrap" style="position:relative;height:160px;width:100%">
+        <canvas id="sleepChart${petIdx}"></canvas>
+      </div>
+    </div>` : ''}
+
     <!-- HEALTH INSIGHTS -->
-    \${typeof generateHealthInsights === 'function' ? generateHealthInsights(petIdx) : ''}
+    ${typeof generateHealthInsights === 'function' ? generateHealthInsights(petIdx) : ''}
+
 
     <!-- FEEDING HISTORY (7 days) -->
     <div class="card">
@@ -2369,10 +3057,14 @@
       }).join('')}
     </div>`;
 
-      // Render weight chart after DOM insert
-      if (wh.length > 0) {
-        setTimeout(() => renderWeightChart(wh, petIdx), 50);
-      }
+      // Render charts after DOM insert
+      setTimeout(() => {
+        if (wh.length > 0) renderWeightChart(wh, petIdx);
+        const moodLog = getLog().filter(e => e.petIdx === petIdx && e.type === 'mood');
+        if (moodLog.length > 0) renderMoodChart(moodLog, petIdx);
+        const sleepLog = typeof getSleepLog === 'function' ? getSleepLog() : (pawCache.sleepLog || []);
+        if (sleepLog.length > 0) renderSleepChart(sleepLog, petIdx);
+      }, 80);
     }
 
     function logQuickMood(mood, petIdx) {
@@ -2391,23 +3083,249 @@
       openTab('tracker');
     }
 
-    function renderWeightChart(wh, petIdx) {
-      const chart = document.getElementById('weightChart' + petIdx);
-      if (!chart) return;
-      const values = wh.map(w => w.weight);
-      const min = Math.min(...values);
-      const max = Math.max(...values);
-      const range = max - min || 1;
-      const last8 = wh.slice(-8);
+    // Track chart instances so we can destroy before re-render
+    const _chartInstances = {};
 
-      chart.innerHTML = last8.map((w, i) => {
-        const h = Math.max(8, Math.round(((w.weight - min) / range) * 60) + 10);
-        return `<div class="weight-bar-wrap">
-      <div class="weight-bar" style="height:${h}px" title="${w.weight}kg"></div>
-      <div class="weight-label">${w.weight}</div>
-    </div>`;
-      }).join('');
+    function renderWeightChart(wh, petIdx) {
+      const canvasId = 'weightChart' + petIdx;
+      const canvas = document.getElementById(canvasId);
+      if (!canvas) return;
+
+      // Destroy previous instance if exists
+      if (_chartInstances[canvasId]) {
+        _chartInstances[canvasId].destroy();
+        delete _chartInstances[canvasId];
+      }
+
+      // Fallback to bar chart if Chart.js not loaded
+      if (typeof Chart === 'undefined') {
+        const values = wh.map(w => w.weight);
+        const min = Math.min(...values);
+        const max = Math.max(...values);
+        const range = max - min || 1;
+        const last8 = wh.slice(-8);
+        canvas.outerHTML = `<div class="weight-chart" id="${canvasId}">${last8.map(w => {
+          const h = Math.max(8, Math.round(((w.weight - min) / range) * 60) + 10);
+          return `<div class="weight-bar-wrap"><div class="weight-bar" style="height:${h}px" title="${w.weight}kg"></div><div class="weight-label">${w.weight}</div></div>`;
+        }).join('')}</div>`;
+        return;
+      }
+
+      const last12 = wh.slice(-12);
+      const labels = last12.map(w => {
+        const d = new Date(w.date);
+        return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+      });
+      const data = last12.map(w => w.weight);
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      const textColor = isDark ? '#e0e0e0' : '#555';
+      const gridColor = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)';
+
+      const ctx = canvas.getContext('2d');
+      const gradient = ctx.createLinearGradient(0, 0, 0, 180);
+      gradient.addColorStop(0, isDark ? 'rgba(52, 211, 153, 0.4)' : 'rgba(16, 185, 129, 0.4)');
+      gradient.addColorStop(1, isDark ? 'rgba(52, 211, 153, 0.0)' : 'rgba(16, 185, 129, 0.0)');
+
+      const brandColor = isDark ? '#34D399' : '#10B981';
+
+      _chartInstances[canvasId] = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Weight (kg)',
+            data,
+            fill: true,
+            backgroundColor: gradient,
+            borderColor: brandColor,
+            borderWidth: 3,
+            pointBackgroundColor: brandColor,
+            pointBorderColor: isDark ? '#1E293B' : '#FFF',
+            pointBorderWidth: 2,
+            pointRadius: 5,
+            pointHoverRadius: 7,
+            tension: 0.4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: ctx => ` ${ctx.parsed.y} kg`
+              },
+              backgroundColor: isDark ? 'rgba(15, 23, 42, 0.9)' : 'rgba(255, 255, 255, 0.9)',
+              titleColor: isDark ? '#F8FAFC' : '#111827',
+              bodyColor: isDark ? '#E2E8F0' : '#4B5563',
+              borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+              borderWidth: 1,
+              padding: 10,
+              cornerRadius: 12,
+              displayColors: false
+            }
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              border: { display: false },
+              ticks: { color: textColor, font: { size: 11, family: "'Inter', sans-serif" }, maxRotation: 0 }
+            },
+            y: {
+              grid: { color: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', drawBorder: false },
+              border: { display: false },
+              ticks: { color: textColor, font: { size: 11, family: "'Inter', sans-serif" }, callback: v => v + ' kg', padding: 8 }
+            }
+          }
+        }
+      });
     }
+
+    function renderMoodChart(moodLog, petIdx) {
+      const canvasId = 'moodChart' + petIdx;
+      const canvas = document.getElementById(canvasId);
+      if (!canvas || typeof Chart === 'undefined' || !moodLog || moodLog.length === 0) return;
+
+      if (_chartInstances[canvasId]) {
+        _chartInstances[canvasId].destroy();
+        delete _chartInstances[canvasId];
+      }
+
+      // Count moods
+      const moodCounts = { '😄 Happy': 0, '😐 Calm': 0, '😴 Tired': 0, '😟 Sad': 0, '😡 Grumpy': 0 };
+      // Filter by petIdx if present
+      const petMoods = moodLog.filter(m => m.petIdx === petIdx || m.petIdx === undefined);
+      petMoods.slice(-30).forEach(m => {
+        const key = m.mood || m.note;
+        if (moodCounts[key] !== undefined) moodCounts[key]++;
+      });
+
+      const labels = Object.keys(moodCounts);
+      const data = Object.values(moodCounts);
+      if (data.every(v => v === 0)) return;
+
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      const ctx = canvas.getContext('2d');
+      _chartInstances[canvasId] = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels,
+          datasets: [{
+            data,
+            backgroundColor: ['#FFB020', '#34D399', '#60A5FA', '#A78BFA', '#FF4B6A'],
+            borderColor: isDark ? '#1E293B' : '#FFFFFF',
+            borderWidth: 3,
+            hoverOffset: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '70%',
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: { font: { size: 12, family: "'Inter', sans-serif" }, color: isDark ? '#E2E8F0' : '#4B5563', padding: 12, usePointStyle: true }
+            },
+            tooltip: {
+              callbacks: {
+                label: ctx => ` ${ctx.label}: ${ctx.parsed} sessions`
+              },
+              backgroundColor: isDark ? 'rgba(15, 23, 42, 0.9)' : 'rgba(255, 255, 255, 0.9)',
+              titleColor: isDark ? '#F8FAFC' : '#111827',
+              bodyColor: isDark ? '#E2E8F0' : '#4B5563',
+              borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+              borderWidth: 1,
+              padding: 10,
+              cornerRadius: 12
+            }
+          }
+        }
+      });
+    }
+
+    function renderSleepChart(sleepLog, petIdx) {
+      const canvasId = 'sleepChart' + petIdx;
+      const canvas = document.getElementById(canvasId);
+      if (!canvas || typeof Chart === 'undefined' || !sleepLog || sleepLog.length === 0) return;
+
+      if (_chartInstances[canvasId]) {
+        _chartInstances[canvasId].destroy();
+        delete _chartInstances[canvasId];
+      }
+
+      // Build last 7 days of sleep hours
+      const last7 = [];
+      const labels = [];
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(Date.now() - i * 86400000);
+        const dayStr = d.toISOString().slice(0, 10);
+        labels.push(d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }));
+        const dayLogs = sleepLog.filter(s => {
+          const match = (s.petIdx === petIdx || s.petIdx === undefined);
+          const dateStr = (s.date || s.timestamp || '').slice(0, 10);
+          return match && dateStr === dayStr;
+        });
+        const totalHrs = dayLogs.reduce((sum, s) => sum + (parseFloat(s.hours) || 0), 0);
+        last7.push(totalHrs);
+      }
+
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      const textColor = isDark ? '#E2E8F0' : '#4B5563';
+      const ctx = canvas.getContext('2d');
+
+      const gradientBar = ctx.createLinearGradient(0, 0, 0, 150);
+      gradientBar.addColorStop(0, isDark ? '#A78BFA' : '#8B5CF6');
+      gradientBar.addColorStop(1, isDark ? 'rgba(167, 139, 250, 0.2)' : 'rgba(139, 92, 246, 0.2)');
+
+      _chartInstances[canvasId] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Sleep (hrs)',
+            data: last7,
+            backgroundColor: gradientBar,
+            borderRadius: 8,
+            borderSkipped: false,
+            barThickness: 16
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: { label: ctx => ` ${ctx.parsed.y} hrs` },
+              backgroundColor: isDark ? 'rgba(15, 23, 42, 0.9)' : 'rgba(255, 255, 255, 0.9)',
+              titleColor: isDark ? '#F8FAFC' : '#111827',
+              bodyColor: isDark ? '#E2E8F0' : '#4B5563',
+              borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+              borderWidth: 1,
+              padding: 10,
+              cornerRadius: 12,
+              displayColors: false
+            }
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              border: { display: false },
+              ticks: { color: textColor, font: { size: 11, family: "'Inter', sans-serif" } }
+            },
+            y: {
+              min: 0,
+              grid: { color: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', drawBorder: false },
+              border: { display: false },
+              ticks: { color: textColor, font: { size: 11, family: "'Inter', sans-serif" }, callback: v => v + 'h', padding: 8 }
+            }
+          }
+        }
+      });
+    }
+
 
     // ==================== REMINDERS TAB ====================
     function renderRemindersTab(pets, activeIdx, noPet) {
@@ -2685,6 +3603,7 @@
             tab.classList.remove('hidden');
           }
           renderCommunity();
+          document.getElementById('householdIdDisplay').value = currentHouseholdId || '';
         } else if (sub === 'game') {
           const box = document.getElementById('comboInner-social-game');
           const tab = document.getElementById('gameTab');
@@ -2822,7 +3741,7 @@
 
     async function saveCommunityPosts(posts) {
       pawCache.communityPosts = posts;
-      localStorage.setItem('pawCommunityPosts', JSON.stringify(posts));
+      (!USE_SUPABASE_ONLY && localStorage.setItem('pawCommunityPosts', JSON.stringify(posts)));
       if (!window.supabaseClient || !currentUser) return;
       const userId = currentUser.id;
       try {
@@ -2847,7 +3766,7 @@
 
     async function saveCart(cart) {
       pawCache.cart = cart;
-      localStorage.setItem('pawCart', JSON.stringify(cart));
+      (!USE_SUPABASE_ONLY && localStorage.setItem('pawCart', JSON.stringify(cart)));
       if (!window.supabaseClient || !currentUser) return;
       const userId = currentUser.id;
       try {
@@ -2871,7 +3790,7 @@
 
     async function saveScanHistory(items) {
       pawCache.scanHistory = items;
-      localStorage.setItem('pawScanHistory', JSON.stringify(items));
+      (!USE_SUPABASE_ONLY && localStorage.setItem('pawScanHistory', JSON.stringify(items)));
       if (!window.supabaseClient || !currentUser) return;
       const userId = currentUser.id;
       try {
@@ -2889,9 +3808,11 @@
     }
 
     // ==================== COMMUNITY FEATURES ====================
+    let selectedCommunityImageFile = null;
     function handleCommunityImage(event) {
       const file = event.target.files[0];
       if (!file) return;
+      selectedCommunityImageFile = file;
       const reader = new FileReader();
       reader.onload = function (e) {
         selectedCommunityImage = e.target.result;
@@ -2899,17 +3820,63 @@
       };
       reader.readAsDataURL(file);
     }
-    function addCommunityPost() {
+    async function addCommunityPost() {
       const type = document.getElementById('communityPostType').value;
       const caption = document.getElementById('communityCaption').value.trim();
-      if (!caption && !selectedCommunityImage) { showToast('Add a caption or photo first'); return; }
+      if (!caption && !selectedCommunityImageFile) { showToast('Add a caption or photo first'); return; }
+      
+      let imageUrl = null;
+      if (selectedCommunityImageFile && window.supabaseClient) {
+        showToast('Uploading photo... ☁️');
+        try {
+          const fileExt = selectedCommunityImageFile.name.split('.').pop();
+          const fileName = `${Date.now()}.${fileExt}`;
+          const { data, error } = await window.supabaseClient.storage
+            .from('community-media')
+            .upload(`public/${fileName}`, selectedCommunityImageFile);
+          
+          if (!error) {
+            const { data: urlData } = window.supabaseClient.storage
+              .from('community-media')
+              .getPublicUrl(`public/${fileName}`);
+            imageUrl = urlData.publicUrl;
+          } else {
+            // Bucket may not exist - fallback to base64 for local preview
+            console.warn("Supabase Storage upload failed, using local image:", error.message);
+            imageUrl = selectedCommunityImage; // base64 fallback
+          }
+        } catch (uploadErr) {
+          console.warn("Image upload exception, using local fallback:", uploadErr);
+          imageUrl = selectedCommunityImage;
+        }
+      } else if (selectedCommunityImage) {
+        imageUrl = selectedCommunityImage; // fallback to base64 if offline/no supabase
+      }
+
+
       const user = getUser() || { name: 'Pet Parent' };
       const pets = getPets();
       const active = pets[getActivePetIdx()] || pets[0] || null;
       const posts = getCommunityPosts();
-      posts.unshift({ id: Date.now(), type, caption, image: selectedCommunityImage, author: user.name || 'Pet Parent', petName: active ? active.name : 'Pet', petAvatar: active ? active.avatar : '', petIcon: active ? (PET_ICONS[active.type] || '🐾') : '🐾', likes: 0, date: new Date().toISOString() });
-      saveCommunityPosts(posts.slice(0, 60));
+      
+      const newPost = { 
+        id: Date.now(), 
+        type, 
+        caption, 
+        image: imageUrl, 
+        author: user.name || 'Pet Parent', 
+        petName: active ? active.name : 'Pet', 
+        petAvatar: active ? active.avatar : '', 
+        petIcon: active ? (PET_ICONS[active.type] || '🐾') : '🐾', 
+        likes: 0, 
+        date: new Date().toISOString() 
+      };
+      posts.unshift(newPost);
+      
+      await saveCommunityPosts(posts.slice(0, 60));
+      
       selectedCommunityImage = '';
+      selectedCommunityImageFile = null;
       document.getElementById('communityCaption').value = '';
       document.getElementById('communityPhotoPreview').innerHTML = '';
       document.getElementById('communityPhotoInput').value = '';
@@ -2942,14 +3909,310 @@
     <div class="feed-card">
       <div class="feed-head">
         <div class="feed-avatar">${p.petAvatar ? `<img src="${p.petAvatar}" alt="pet">` : (p.petIcon || '🐾')}</div>
-        <div><b>${p.author}</b><div style="font-size:12px;color:var(--muted)">${p.petName || 'Pet'} · ${new Date(p.date).toLocaleString()}</div></div>
+        <div><b>${p.author || 'PawFeed User'}</b><div style="font-size:12px;color:var(--muted)">${p.petName || 'Pet'} · ${new Date(p.date || p.created_at || Date.now()).toLocaleString()}</div></div>
       </div>
       <span class="recipe-chip">${p.type === 'recipe' ? '🍲 Community Recipe' : p.type === 'photo' ? '📷 Pet Photo' : '💡 Care Tip'}</span>
-      <p style="font-size:14px;line-height:1.5;margin-top:8px">${escapeHtml(p.caption || '')}</p>
-      ${p.image ? `<img class="feed-img" src="${p.image}" alt="community photo">` : ''}
-      <div style="display:flex;gap:8px;margin-top:8px"><button class="small-btn" onclick="likeCommunityPost(${p.id})">❤️ ${p.likes || 0}</button><button class="small-btn" onclick="deleteCommunityPost(${p.id})">Delete</button></div>
+      <p style="font-size:14px;line-height:1.5;margin-top:8px">${escapeHtml(p.caption || p.content || '')}</p>
+      ${p.image || p.image_url ? `<img class="feed-img" src="${p.image || p.image_url}" alt="community photo">` : ''}
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="small-btn" onclick="likeCommunityPost(${p.id})">❤️ ${p.likes || 0}</button>
+        <button class="small-btn" onclick="openCommentsModal(${p.id})">💬 Comments</button>
+        <button class="small-btn" onclick="deleteCommunityPost(${p.id})">Delete</button>
+      </div>
     </div>`).join('');
     }
+
+    // --- COMMENTS LOGIC ---
+    let currentCommentPostId = null;
+    
+    function openCommentsModal(postId) {
+      currentCommentPostId = postId;
+      document.getElementById('commentsModal').classList.remove('hidden');
+      document.getElementById('commentsList').innerHTML = '<p style="text-align:center; color:var(--muted); font-size:12px;">Loading comments...</p>';
+      fetchCommunityComments(postId);
+    }
+    // ==================== DIRECT MESSAGES ====================
+    let currentDMChatUserId = null;
+
+    function openDirectMessagesModal() {
+      document.getElementById('dmModal').classList.remove('hidden');
+      backToInbox();
+    }
+
+    function closeDMModal() {
+      document.getElementById('dmModal').classList.add('hidden');
+    }
+
+    function showNewDMView() {
+      document.getElementById('dmInboxView').classList.add('hidden');
+      document.getElementById('dmSearchView').classList.remove('hidden');
+      document.getElementById('dmSearchInput').value = '';
+      document.getElementById('dmSearchList').innerHTML = '<p class="empty-state">Type a username to search...</p>';
+    }
+
+    async function searchUsers() {
+      const query = document.getElementById('dmSearchInput').value.trim();
+      const list = document.getElementById('dmSearchList');
+      if (query.length < 2) {
+        list.innerHTML = '<p class="empty-state">Type a username to search...</p>';
+        return;
+      }
+      if (!window.supabaseClient) return;
+
+      try {
+        list.innerHTML = '<p class="empty-state">Searching...</p>';
+        const { data, error } = await window.supabaseClient.from('user_profiles')
+          .select('id, username, avatar_url')
+          .ilike('username', `%${query}%`)
+          .limit(10);
+        
+        if (error) throw error;
+        
+        if (!data || data.length === 0) {
+          list.innerHTML = '<p class="empty-state">No users found.</p>';
+          return;
+        }
+
+        list.innerHTML = data.map(u => `
+          <div class="dm-chat-row" onclick="startChatFromSearch('${u.id}', '${u.username || 'User'}')">
+            ${u.avatar_url ? `<img src="${u.avatar_url}" class="dm-avatar" style="object-fit:cover;">` : `<div class="dm-avatar">👤</div>`}
+            <b style="color:var(--dark);font-size:15px;font-weight:700">${u.username || 'Unknown'}</b>
+          </div>
+        `).join('');
+      } catch (err) {
+        console.error("Search error:", err);
+        list.innerHTML = '<p class="empty-state">Error searching users.</p>';
+      }
+    }
+
+    function startChatFromSearch(userId, username) {
+      document.getElementById('dmSearchView').classList.add('hidden');
+      openDMChat(userId, username);
+    }
+
+    function backToInbox() {
+      document.getElementById('dmChatView').classList.add('hidden');
+      document.getElementById('dmSearchView').classList.add('hidden');
+      document.getElementById('dmInboxView').classList.remove('hidden');
+      currentDMChatUserId = null;
+      fetchDMInbox();
+    }
+
+    async function fetchDMInbox() {
+      if (!window.supabaseClient || !currentUser) {
+        document.getElementById('dmChatList').innerHTML = '<p style="text-align:center; color:var(--muted); padding:20px;">Login required for messages.</p>';
+        return;
+      }
+      try {
+        const { data, error } = await window.supabaseClient.from('direct_messages')
+          .select('*')
+          .or(`sender_id.eq.${currentUser.id},receiver_id.eq.${currentUser.id}`)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        const chats = {};
+        data.forEach(msg => {
+          const otherId = msg.sender_id === currentUser.id ? msg.receiver_id : msg.sender_id;
+          if (!chats[otherId]) chats[otherId] = msg; 
+        });
+
+        const list = document.getElementById('dmChatList');
+        if (Object.keys(chats).length === 0) {
+          list.innerHTML = '<p style="text-align:center; color:var(--muted); padding:20px;">No messages yet.</p>';
+          return;
+        }
+
+        list.innerHTML = Object.entries(chats).map(([userId, latestMsg]) => `
+          <div class="dm-chat-row" onclick="openDMChat('${userId}', 'User ${userId.substring(0,4)}')">
+            <div class="dm-avatar">👤</div>
+            <div style="flex:1;">
+              <b style="color:var(--dark);font-size:15px;font-weight:700">User ${userId.substring(0,4)}</b>
+              <p style="color:var(--muted);font-size:13px;margin:2px 0 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(latestMsg.content)}</p>
+            </div>
+          </div>
+        `).join('');
+      } catch (err) {
+        console.error("Error fetching inbox:", err);
+      }
+    }
+
+    async function openDMChat(userId, userName) {
+      currentDMChatUserId = userId;
+      document.getElementById('dmInboxView').classList.add('hidden');
+      document.getElementById('dmChatView').classList.remove('hidden');
+      document.getElementById('dmChatRecipientName').textContent = userName;
+      document.getElementById('dmMessageList').innerHTML = '<p style="text-align:center; color:var(--muted); padding:20px;">Loading...</p>';
+      await fetchDMChat(userId);
+    }
+
+    async function fetchDMChat(userId) {
+      if (!window.supabaseClient || !currentUser) return;
+      try {
+        const { data, error } = await window.supabaseClient.from('direct_messages')
+          .select('*')
+          .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${userId}),and(sender_id.eq.${userId},receiver_id.eq.${currentUser.id})`)
+          .order('created_at', { ascending: true });
+
+        if (error) throw error;
+        renderDMChat(data);
+      } catch (err) {
+        console.error("Error fetching chat:", err);
+      }
+    }
+
+    function renderDMChat(messages) {
+      const list = document.getElementById('dmMessageList');
+      if (!messages || messages.length === 0) {
+        list.innerHTML = '<p style="text-align:center; color:var(--muted); padding:20px;">No messages yet. Say hi!</p>';
+        return;
+      }
+      list.innerHTML = messages.map(m => {
+        const isMe = m.sender_id === currentUser.id;
+        return `
+          <div style="display:flex; justify-content:${isMe ? 'flex-end' : 'flex-start'}; margin-bottom: 8px;">
+            <div class="dm-message-bubble ${isMe ? 'dm-message-me' : 'dm-message-other'}">
+              ${escapeHtml(m.content)}
+            </div>
+          </div>
+        `;
+      }).join('');
+      list.scrollTop = list.scrollHeight;
+    }
+
+    async function sendDM() {
+      const input = document.getElementById('dmInput');
+      const content = input.value.trim();
+      if (!content || !currentDMChatUserId || !window.supabaseClient || !currentUser) return;
+      
+      input.value = '';
+      try {
+        const { error } = await window.supabaseClient.from('direct_messages').insert({
+          sender_id: currentUser.id,
+          receiver_id: currentDMChatUserId,
+          content: content
+        });
+        if (error) throw error;
+        await fetchDMChat(currentDMChatUserId);
+      } catch (err) {
+        console.error("Failed to send DM:", err);
+        showToast("Error sending message.");
+      }
+    }
+
+    let currentCommentParentId = null;
+
+    function closeCommentsModal() {
+      document.getElementById('commentsModal').classList.add('hidden');
+      currentCommentPostId = null;
+      currentCommentParentId = null;
+      document.getElementById('commentInput').placeholder = 'Add a comment...';
+    }
+    
+    async function fetchCommunityComments(postId) {
+      if (!window.supabaseClient) {
+        document.getElementById('commentsList').innerHTML = '<p style="text-align:center; color:var(--muted); font-size:12px;">Offline mode: Comments not available.</p>';
+        return;
+      }
+      try {
+        const { data, error } = await window.supabaseClient.from('community_comments')
+          .select('*')
+          .eq('post_id', postId)
+          .order('created_at', { ascending: true });
+          
+        if (error) throw error;
+        
+        renderComments(data);
+      } catch (err) {
+        console.error("Error fetching comments:", err);
+        document.getElementById('commentsList').innerHTML = '<p style="text-align:center; color:var(--muted); font-size:12px;">Failed to load comments.</p>';
+      }
+    }
+    
+    function renderComments(comments) {
+      const list = document.getElementById('commentsList');
+      if (!comments || comments.length === 0) {
+        list.innerHTML = '<p style="text-align:center; color:var(--muted); font-size:12px; padding:20px 0;">No comments yet. Be the first!</p>';
+        return;
+      }
+
+      const roots = comments.filter(c => !c.parent_id);
+      const byParent = {};
+      comments.filter(c => c.parent_id).forEach(c => {
+        if (!byParent[c.parent_id]) byParent[c.parent_id] = [];
+        byParent[c.parent_id].push(c);
+      });
+
+      function renderNode(c, depth = 0) {
+        let html = `
+          <div style="background:var(--bg); border:1px solid var(--border); border-radius:12px; padding:10px 14px; margin-bottom:10px; margin-left:${depth * 24}px; position:relative;">
+            ${depth > 0 ? `<div style="position:absolute; left:-12px; top:18px; width:12px; height:2px; background:var(--border);"></div><div style="position:absolute; left:-12px; top:-10px; width:2px; height:28px; background:var(--border);"></div>` : ''}
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+              ${c.author_avatar ? `<img src="${c.author_avatar}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;">` : `<div style="width:24px;height:24px;border-radius:50%;background:var(--border);display:flex;align-items:center;justify-content:center;font-size:12px;">👤</div>`}
+              <b style="font-size:13px; color:var(--dark)">${c.author_name || 'Anonymous'}</b>
+              <span style="font-size:10px; color:var(--muted); margin-left:auto;">${new Date(c.created_at).toLocaleString('en-US', {hour:'numeric', minute:'numeric', month:'short', day:'numeric'})}</span>
+            </div>
+            <p style="font-size:13px; color:var(--text); margin:0 0 6px 0;">${escapeHtml(c.content)}</p>
+            <button onclick="setCommentReply(${c.id}, '${escapeHtml(c.author_name || 'Anonymous')}')" style="background:none;border:none;color:var(--teal);font-size:11px;font-weight:700;cursor:pointer;padding:0;">Reply</button>
+          </div>
+        `;
+        if (byParent[c.id]) {
+          byParent[c.id].forEach(child => {
+            html += renderNode(child, depth + 1);
+          });
+        }
+        return html;
+      }
+
+      list.innerHTML = roots.map(c => renderNode(c)).join('');
+      list.scrollTop = list.scrollHeight;
+    }
+
+    window.setCommentReply = function(commentId, authorName) {
+      currentCommentParentId = commentId;
+      const input = document.getElementById('commentInput');
+      input.placeholder = `Replying to ${authorName}...`;
+      input.focus();
+    };
+    
+    document.getElementById('postCommentBtn')?.addEventListener('click', async () => {
+      const input = document.getElementById('commentInput');
+      const content = input.value.trim();
+      if (!content || !currentCommentPostId || !window.supabaseClient || !currentUser) {
+        if (!currentUser) showToast("Please login to comment.");
+        return;
+      }
+      
+      const user = getUser() || {};
+      const avatar = (USE_SUPABASE_ONLY ? null : localStorage.getItem('pawUserAvatar')) || null;
+      
+      input.value = '';
+      input.disabled = true;
+      
+      try {
+        const payload = {
+          post_id: currentCommentPostId,
+          user_id: currentUser.id,
+          author_name: user.name || currentUser.email.split('@')[0],
+          author_avatar: avatar,
+          content: content,
+          parent_id: currentCommentParentId || null
+        };
+        const { error } = await window.supabaseClient.from('community_comments').insert(payload);
+        if (error) throw error;
+        
+        // Reset reply state
+        currentCommentParentId = null;
+        document.getElementById('commentInput').placeholder = 'Add a comment...';
+        fetchCommunityComments(currentCommentPostId);
+      } catch (err) {
+        console.error("Failed to post comment:", err);
+        showToast("Failed to post comment.");
+      } finally {
+        input.disabled = false;
+        input.focus();
+      }
+    });
 
     // ==================== MARKETPLACE FEATURES ====================
     function renderMarketplace() {
@@ -2980,7 +4243,7 @@
 
     async function saveOrders(orders) {
       pawCache.orders = orders;
-      localStorage.setItem('pawOrders', JSON.stringify(orders));
+      (!USE_SUPABASE_ONLY && localStorage.setItem('pawOrders', JSON.stringify(orders)));
       if (!window.supabaseClient || !currentUser) return;
       const userId = currentUser.id;
       try {
@@ -3029,9 +4292,9 @@
       const doneKey = 'pawChallenge_' + todayStr() + '_' + key;
       const log = getLog();
       const alreadyDone = log.some(e => e.type === 'challenge' && e.timestamp.startsWith(todayStr()) && e.note.includes(key));
-      if (alreadyDone || localStorage.getItem(doneKey)) { showToast('Already completed today'); return; }
+      if (alreadyDone || (USE_SUPABASE_ONLY ? null : localStorage.getItem(doneKey))) { showToast('Already completed today'); return; }
       log.unshift({ id: Date.now(), type: 'challenge', note: 'Completed challenge: ' + key + ' (+' + xp + ' XP)', timestamp: new Date().toISOString(), petName: 'PawFeed', petIdx: -1 });
-      saveLog(log); localStorage.setItem(doneKey, 'true'); renderGameTab(); showToast('Challenge completed +' + xp + ' XP 🏆');
+      saveLog(log); (!USE_SUPABASE_ONLY && localStorage.setItem(doneKey, 'true')); renderGameTab(); showToast('Challenge completed +' + xp + ' XP 🏆');
     }
     function renderGameTab() {
       const box = document.getElementById('gameBox'); if (!box) return;
@@ -3189,7 +4452,9 @@
       { id: 'r5', title: 'Bird Seed Fruit Treat', pet: ['Bird'], type: 'Veg', cat: 'Snack', time: 10, diff: 'Easy', cal: 95, protein: 7, fiber: 5, vit: 76, vet: false, budget: true, season: 'Summer treat', ingredients: ['millet', 'apple without seeds', 'carrot', 'boiled corn small amount'], steps: ['Remove all apple seeds.', 'Chop fruit and carrot very small.', 'Mix with millet.', 'Serve as a small treat, not full meal.'] },
       { id: 'r6', title: 'Emergency Egg Rice Mini Meal', pet: ['Dog', 'Cat'], type: 'Non-Veg', cat: 'Quick', time: 12, diff: 'Easy', cal: 220, protein: 18, fiber: 2, vit: 55, vet: false, budget: true, season: 'Emergency', ingredients: ['boiled egg', 'rice', 'water'], steps: ['Boil egg completely.', 'Cook soft rice.', 'Mash together with warm water.', 'Serve only as a quick temporary meal.'] },
       { id: 'r7', title: 'Budget Veg Protein Mix', pet: ['Dog'], type: 'Veg', cat: 'Budget', time: 22, diff: 'Easy', cal: 260, protein: 15, fiber: 7, vit: 69, vet: false, budget: true, season: 'Budget friendly', ingredients: ['rice', 'lentil water', 'pumpkin', 'beans small amount'], steps: ['Cook rice softly.', 'Use cooked lentil water, not spicy dal.', 'Steam pumpkin and beans.', 'Mix, cool, and serve in small portions.'] },
-      { id: 'r8', title: 'Frozen Hydration Snack', pet: ['Dog'], type: 'Veg', cat: 'Seasonal', time: 5, diff: 'Easy', cal: 60, protein: 3, fiber: 3, vit: 60, vet: true, budget: true, season: 'Hot summer', ingredients: ['watermelon seedless', 'curd', 'water'], steps: ['Use seedless watermelon only.', 'Blend with plain curd and water.', 'Freeze in small cubes.', 'Give as an occasional cooling treat.'] }
+      { id: 'r8', title: 'Frozen Hydration Snack', pet: ['Dog'], type: 'Veg', cat: 'Seasonal', time: 5, diff: 'Easy', cal: 60, protein: 3, fiber: 3, vit: 60, vet: true, budget: true, season: 'Hot summer', ingredients: ['watermelon seedless', 'curd', 'water'], steps: ['Use seedless watermelon only.', 'Blend with plain curd and water.', 'Freeze in small cubes.', 'Give as an occasional cooling treat.'] },
+      { id: 'r9', title: 'Hamster Grain & Veggie Mix', pet: ['Hamster'], type: 'Veg', cat: 'Meal', time: 5, diff: 'Easy', cal: 90, protein: 6, fiber: 5, vit: 75, vet: true, budget: true, season: 'All season', ingredients: ['oats', 'barley', 'carrot (tiny pieces)', 'broccoli (tiny pieces)'], steps: ['Mix oats and barley as a base grain blend.', 'Finely chop carrot and broccoli into hamster-bite-sized pieces.', 'Combine everything in a small ceramic bowl.', 'Scatter in the cage to encourage foraging behaviour.', 'Ensure fresh water is always available.'] },
+      { id: 'r10', title: 'Hamster Protein Seed Treat', pet: ['Hamster'], type: 'Veg', cat: 'Snack', time: 3, diff: 'Easy', cal: 60, protein: 4, fiber: 3, vit: 65, vet: true, budget: true, season: 'All season', ingredients: ['sunflower seeds (unsalted)', 'pumpkin seeds', 'flaxseed', 'millet'], steps: ['Use only unsalted, plain seeds.', 'Mix in small pinch quantities.', 'Offer as an occasional treat (not daily).', 'Always pair with hay and fresh water.'] }
     ];
     let activeRecipeId = null;
     let foodTimer = null;
@@ -3206,7 +4471,7 @@
 
     async function saveRecipeStore(st) {
       pawCache.recipes = st;
-      localStorage.setItem('pawfeedRecipes', JSON.stringify(st));
+      (!USE_SUPABASE_ONLY && localStorage.setItem('pawfeedRecipes', JSON.stringify(st)));
       if (!window.supabaseClient || !currentUser) return;
       const userId = currentUser.id;
       try {
@@ -3226,7 +4491,8 @@
         cat: 'Cat',
         rabbit: 'Rabbit',
         parrot: 'Bird',
-        fish: 'Fish'
+        fish: 'Fish',
+        hamster: 'Hamster'
       };
       const nonVegKeywords = ['chicken', 'beef', 'turkey', 'fish', 'meat', 'egg', 'salmon', 'pork', 'shrimp', 'lamb', 'duck', 'tuna', 'sardine', 'liver', 'krill', 'cod', 'prawn', 'crab', 'bacon', 'venison', 'bison', 'anchovy', 'mackerel', 'herring', 'shellfish', 'squid', 'octopus'];
 
@@ -3297,7 +4563,7 @@
 
     function renderHomemadeTab(keepLimit) {
       if (!keepLimit) recipeLimit = 15;
-      const pets = getPets(); const activeIdx = getActivePetIdx(); const pet = pets[activeIdx] || null;
+      const pets = getPets(); const activeIdx = Math.min(getActivePetIdx(), Math.max(0, pets.length - 1)); const pet = pets[activeIdx] || null;
       const tabs = document.getElementById('homemadePetTabs'); if (!tabs) return;
       tabs.innerHTML = pets.length ? pets.map((p, i) => `<div class="pet-tab ${i === activeIdx ? 'active' : ''}" onclick="setActivePet(${i});renderHomemadeTab()">${p.avatar ? '<img src="' + p.avatar + '" style="width:18px;height:18px;border-radius:50%;vertical-align:middle;margin-right:4px">' : PET_ICONS[p.type]} ${p.name}</div>`).join('') : '<div class="pet-tab active">General Recipes</div>';
       const search = (document.getElementById('recipeSearch')?.value || '').toLowerCase();
@@ -3342,7 +4608,7 @@
         extraHtml += `<div class="list-item"><span>✨</span><div><b>Benefits</b><p>${r.benefits.join(', ')}</p></div></div>`;
       }
       if (r.frequency) {
-        extraHtml += `<div class="list-item"><span>📅</span><div><b>Recommended Frequency</b><p>${r.frequency}</p></div></div>`;
+        extraHtml += `<div class="list-item"><span>🗓️</span><div><b>Recommended Frequency</b><p>${r.frequency}</p></div></div>`;
       }
       if (r.vetTip) {
         extraHtml += `<div class="list-item danger"><span>🩺</span><div><b>Vet Tip</b><p>${r.vetTip}</p></div></div>`;
@@ -3382,9 +4648,9 @@
       const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
       const filtered = HOME_RECIPES.filter(r => !pet || r.pet.includes(pet.type));
       const meals = filtered.length ? filtered : HOME_RECIPES;
-      const html = `<div class="card"><h3 style="font-weight:900;color:var(--dark)">📅 AI Weekly Nutrition Plan</h3><div class="planner-grid">${days.map((d, i) => `<div class="planner-day"><b>${d}</b>${meals[i % meals.length].title}<br><small>Morning / Evening portions</small></div>`).join('')}</div></div>`;
+      const html = `<div class="card"><h3 style="font-weight:900;color:var(--dark)">🗓️ AI Weekly Nutrition Plan</h3><div class="planner-grid">${days.map((d, i) => `<div class="planner-day"><b>${d}</b>${meals[i % meals.length].title}<br><small>Morning / Evening portions</small></div>`).join('')}</div></div>`;
       document.getElementById('weeklyPlanBox').innerHTML = html;
-      showToast('Weekly meal planner ready 📅');
+      showToast('Weekly meal planner ready 🗓️');
     }
     function generateShoppingList() {
       const pets = getPets(); const activeIdx = getActivePetIdx(); const pet = pets[activeIdx] || null;
@@ -3879,7 +5145,7 @@
 
     async function saveMoodLog(d) {
       pawCache.moodLog = d;
-      localStorage.setItem('pawMoodLog', JSON.stringify(d));
+      (!USE_SUPABASE_ONLY && localStorage.setItem('pawMoodLog', JSON.stringify(d)));
       if (!window.supabaseClient || !currentUser) return;
       const userId = currentUser.id;
       try {
@@ -3919,7 +5185,7 @@
       const box = document.getElementById('moodHistoryBox'); if (!box) return;
       if (!log.length) { box.innerHTML = '<div class="card empty-state"><h3>No moods logged yet</h3><p>Tap an emoji above to log today\'s mood.</p></div>'; return; }
       const MOOD_COLOR = { Happy: '#B5EAD7', Tired: '#FFF5B7', Sick: '#FFCCE0', Playful: '#a855f7', Sad: '#3b82f6' };
-      box.innerHTML = `<div class="card"><b>📅 Mood History</b><div style="margin-top:10px">${log.slice(0, 14).map(m => `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:22px">${m.emoji}</span><span style="font-weight:700;color:${MOOD_COLOR[m.label] || 'var(--text)'}">${m.label}</span><span style="font-size:12px;color:var(--muted)">${m.date}</span></div>`).join('')}</div></div>`;
+      box.innerHTML = `<div class="card"><b>🗓️ Mood History</b><div style="margin-top:10px">${log.slice(0, 14).map(m => `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:22px">${m.emoji}</span><span style="font-weight:700;color:${MOOD_COLOR[m.label] || 'var(--text)'}">${m.label}</span><span style="font-size:12px;color:var(--muted)">${m.date}</span></div>`).join('')}</div></div>`;
     }
 
     // ==================== MEDICATION ====================
@@ -3929,7 +5195,7 @@
 
     async function saveMeds(d) {
       pawCache.meds = d;
-      localStorage.setItem('pawMeds', JSON.stringify(d));
+      (!USE_SUPABASE_ONLY && localStorage.setItem('pawMeds', JSON.stringify(d)));
       if (!window.supabaseClient || !currentUser) return;
       const userId = currentUser.id;
       try {
@@ -3993,7 +5259,7 @@
 
     async function saveVetLog(d) {
       pawCache.vetLog = d;
-      localStorage.setItem('pawVetLog', JSON.stringify(d));
+      (!USE_SUPABASE_ONLY && localStorage.setItem('pawVetLog', JSON.stringify(d)));
       if (!window.supabaseClient || !currentUser) return;
       const userId = currentUser.id;
       try {
@@ -4049,7 +5315,7 @@
 
     async function saveSleepLog(d) {
       pawCache.sleepLog = d;
-      localStorage.setItem('pawSleepLog', JSON.stringify(d));
+      (!USE_SUPABASE_ONLY && localStorage.setItem('pawSleepLog', JSON.stringify(d)));
       if (!window.supabaseClient || !currentUser) return;
       const userId = currentUser.id;
       try {
@@ -4105,7 +5371,7 @@
     async function saveGallery(petIdx, d) {
       if (!pawCache.gallery) pawCache.gallery = {};
       pawCache.gallery[petIdx] = d;
-      localStorage.setItem('pawGallery_' + petIdx, JSON.stringify(d));
+      (!USE_SUPABASE_ONLY && localStorage.setItem('pawGallery_' + petIdx, JSON.stringify(d)));
       if (!window.supabaseClient || !currentUser) return;
       const userId = currentUser.id;
       const petId = pawCache.pets[petIdx]?.id || null;
@@ -4179,7 +5445,7 @@
     async function saveWeightHistory(petIdx, d) {
       if (!pawCache.weightHistory) pawCache.weightHistory = {};
       pawCache.weightHistory[petIdx] = d;
-      localStorage.setItem('pawWeightHistory_' + petIdx, JSON.stringify(d));
+      (!USE_SUPABASE_ONLY && localStorage.setItem('pawWeightHistory_' + petIdx, JSON.stringify(d)));
       if (!window.supabaseClient || !currentUser) return;
       const userId = currentUser.id;
       const petId = pawCache.pets[petIdx]?.id || null;
@@ -4207,7 +5473,7 @@
       history.push({ date: todayStr(), weight: val });
       saveWeightHistory(idx, history.slice(-30));
       // Also update pet profile weight
-      const pet = pets[idx]; if (pet) { pet.weight = val; pets[idx] = pet; localStorage.setItem('pawPets', JSON.stringify(pets)); }
+      const pet = pets[idx]; if (pet) { pet.weight = val; pets[idx] = pet; (!USE_SUPABASE_ONLY && localStorage.setItem('pawPets', JSON.stringify(pets))); }
       document.getElementById('weightInput').value = '';
       showToast(`⚖️ ${val}kg logged!`);
       renderWeightChartTab();
@@ -4534,7 +5800,7 @@ Use emojis and keep under 150 words.`;
       if (dayLogs.length > 0) {
         box.innerHTML = `<span style="font-size:18px">📋</span><div><div style="font-size:12px;color:var(--muted);font-weight:700">${label}${isToday ? ' · Today' : ''}</div><div style="margin-top:3px">${fed ? `🍽️ ${fed} feeding${fed > 1 ? 's' : ''}` : ''} ${water ? `💧 ${water} water log${water > 1 ? 's' : ''}` : ''}</div></div>`;
       } else {
-        box.innerHTML = `<span style="font-size:18px">${isToday ? '📅' : '🗓️'}</span><div><div style="font-size:12px;color:var(--muted);font-weight:700">${label}${isToday ? ' · Today' : ''}</div><div style="margin-top:3px;color:var(--muted);font-weight:600;font-size:12px">No activity logged</div></div>`;
+        box.innerHTML = `<span style="font-size:18px">${isToday ? '🗓️' : '🗓️'}</span><div><div style="font-size:12px;color:var(--muted);font-weight:700">${label}${isToday ? ' · Today' : ''}</div><div style="margin-top:3px;color:var(--muted);font-weight:600;font-size:12px">No activity logged</div></div>`;
       }
     }
 
@@ -4576,16595 +5842,28 @@ Use emojis and keep under 150 words.`;
       if (mainApp) mainApp.classList.add("hidden");
 
       // Prevent automatic login
-      localStorage.removeItem("pawfeedCurrentUser");
+      (!USE_SUPABASE_ONLY && localStorage.removeItem("pawfeedCurrentUser"));
     });
 
 // ── Script block 3: recipeDB + main app logic ───────────────────────────────
 
     // your existing JavaScript code
 
-    const recipeDB = {
-      "dog": [
-        {
-          "id": 1,
-          "name": "Beef & Sweet Potato Delight #1",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "11 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Beef",
-            "Sweet Potato",
-            "Carrot",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the beef.",
-            "Prepare the sweet potato.",
-            "Mix with carrot.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "11 g",
-            "fiber": "2 g",
-            "fat": "3 g",
-            "calories": "83 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 2,
-          "name": "Pumpkin & Egg Delight #2",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "12 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Pumpkin",
-            "Egg",
-            "Spinach",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the pumpkin.",
-            "Prepare the egg.",
-            "Mix with spinach.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "12 g",
-            "fiber": "3 g",
-            "fat": "4 g",
-            "calories": "86 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 3,
-          "name": "Rice & Turkey Delight #3",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "13 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Rice",
-            "Turkey",
-            "Oats",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the rice.",
-            "Prepare the turkey.",
-            "Mix with oats.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "13 g",
-            "fiber": "4 g",
-            "fat": "5 g",
-            "calories": "89 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 4,
-          "name": "Sweet Potato & Carrot Delight #4",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "14 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Sweet Potato",
-            "Carrot",
-            "Chicken",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the sweet potato.",
-            "Prepare the carrot.",
-            "Mix with chicken.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "14 g",
-            "fiber": "5 g",
-            "fat": "6 g",
-            "calories": "92 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 5,
-          "name": "Egg & Spinach Delight #5",
-          "ageGroup": "Senior",
-          "mealType": "Lunch",
-          "cookTime": "15 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Egg",
-            "Spinach",
-            "Beef",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the egg.",
-            "Prepare the spinach.",
-            "Mix with beef.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "15 g",
-            "fiber": "6 g",
-            "fat": "7 g",
-            "calories": "95 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 6,
-          "name": "Turkey & Oats Delight #6",
-          "ageGroup": "Baby",
-          "mealType": "Dinner",
-          "cookTime": "16 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Turkey",
-            "Oats",
-            "Pumpkin",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the turkey.",
-            "Prepare the oats.",
-            "Mix with pumpkin.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "16 g",
-            "fiber": "1 g",
-            "fat": "8 g",
-            "calories": "98 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 7,
-          "name": "Carrot & Chicken Delight #7",
-          "ageGroup": "Adult",
-          "mealType": "Snack",
-          "cookTime": "17 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Carrot",
-            "Chicken",
-            "Rice",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the carrot.",
-            "Prepare the chicken.",
-            "Mix with rice.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "17 g",
-            "fiber": "2 g",
-            "fat": "9 g",
-            "calories": "101 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 8,
-          "name": "Spinach & Beef Delight #8",
-          "ageGroup": "Senior",
-          "mealType": "Breakfast",
-          "cookTime": "18 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Spinach",
-            "Beef",
-            "Sweet Potato",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the spinach.",
-            "Prepare the beef.",
-            "Mix with sweet potato.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "18 g",
-            "fiber": "3 g",
-            "fat": "2 g",
-            "calories": "104 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 9,
-          "name": "Oats & Pumpkin Delight #9",
-          "ageGroup": "Baby",
-          "mealType": "Lunch",
-          "cookTime": "19 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Oats",
-            "Pumpkin",
-            "Egg",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the oats.",
-            "Prepare the pumpkin.",
-            "Mix with egg.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "19 g",
-            "fiber": "4 g",
-            "fat": "3 g",
-            "calories": "107 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 10,
-          "name": "Chicken & Rice Delight #10",
-          "ageGroup": "Adult",
-          "mealType": "Dinner",
-          "cookTime": "20 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Chicken",
-            "Rice",
-            "Turkey",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the chicken.",
-            "Prepare the rice.",
-            "Mix with turkey.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "20 g",
-            "fiber": "5 g",
-            "fat": "4 g",
-            "calories": "110 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 11,
-          "name": "Beef & Sweet Potato Delight #11",
-          "ageGroup": "Senior",
-          "mealType": "Snack",
-          "cookTime": "21 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Beef",
-            "Sweet Potato",
-            "Carrot",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the beef.",
-            "Prepare the sweet potato.",
-            "Mix with carrot.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "21 g",
-            "fiber": "6 g",
-            "fat": "5 g",
-            "calories": "113 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 12,
-          "name": "Pumpkin & Egg Delight #12",
-          "ageGroup": "Baby",
-          "mealType": "Breakfast",
-          "cookTime": "22 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Pumpkin",
-            "Egg",
-            "Spinach",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the pumpkin.",
-            "Prepare the egg.",
-            "Mix with spinach.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "22 g",
-            "fiber": "1 g",
-            "fat": "6 g",
-            "calories": "116 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 13,
-          "name": "Rice & Turkey Delight #13",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "23 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Rice",
-            "Turkey",
-            "Oats",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the rice.",
-            "Prepare the turkey.",
-            "Mix with oats.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "23 g",
-            "fiber": "2 g",
-            "fat": "7 g",
-            "calories": "119 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 14,
-          "name": "Sweet Potato & Carrot Delight #14",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "24 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Sweet Potato",
-            "Carrot",
-            "Chicken",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the sweet potato.",
-            "Prepare the carrot.",
-            "Mix with chicken.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "24 g",
-            "fiber": "3 g",
-            "fat": "8 g",
-            "calories": "122 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 15,
-          "name": "Egg & Spinach Delight #15",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "25 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Egg",
-            "Spinach",
-            "Beef",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the egg.",
-            "Prepare the spinach.",
-            "Mix with beef.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "25 g",
-            "fiber": "4 g",
-            "fat": "9 g",
-            "calories": "125 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 16,
-          "name": "Turkey & Oats Delight #16",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "26 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Turkey",
-            "Oats",
-            "Pumpkin",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the turkey.",
-            "Prepare the oats.",
-            "Mix with pumpkin.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "26 g",
-            "fiber": "5 g",
-            "fat": "2 g",
-            "calories": "128 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 17,
-          "name": "Carrot & Chicken Delight #17",
-          "ageGroup": "Senior",
-          "mealType": "Lunch",
-          "cookTime": "27 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Carrot",
-            "Chicken",
-            "Rice",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the carrot.",
-            "Prepare the chicken.",
-            "Mix with rice.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "27 g",
-            "fiber": "6 g",
-            "fat": "3 g",
-            "calories": "131 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 18,
-          "name": "Spinach & Beef Delight #18",
-          "ageGroup": "Baby",
-          "mealType": "Dinner",
-          "cookTime": "28 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Spinach",
-            "Beef",
-            "Sweet Potato",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the spinach.",
-            "Prepare the beef.",
-            "Mix with sweet potato.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "28 g",
-            "fiber": "1 g",
-            "fat": "4 g",
-            "calories": "134 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 19,
-          "name": "Oats & Pumpkin Delight #19",
-          "ageGroup": "Adult",
-          "mealType": "Snack",
-          "cookTime": "29 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Oats",
-            "Pumpkin",
-            "Egg",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the oats.",
-            "Prepare the pumpkin.",
-            "Mix with egg.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "29 g",
-            "fiber": "2 g",
-            "fat": "5 g",
-            "calories": "137 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 20,
-          "name": "Chicken & Rice Delight #20",
-          "ageGroup": "Senior",
-          "mealType": "Breakfast",
-          "cookTime": "30 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Chicken",
-            "Rice",
-            "Turkey",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the chicken.",
-            "Prepare the rice.",
-            "Mix with turkey.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "10 g",
-            "fiber": "3 g",
-            "fat": "6 g",
-            "calories": "140 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 21,
-          "name": "Beef & Sweet Potato Delight #21",
-          "ageGroup": "Baby",
-          "mealType": "Lunch",
-          "cookTime": "10 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Beef",
-            "Sweet Potato",
-            "Carrot",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the beef.",
-            "Prepare the sweet potato.",
-            "Mix with carrot.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "11 g",
-            "fiber": "4 g",
-            "fat": "7 g",
-            "calories": "143 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 22,
-          "name": "Pumpkin & Egg Delight #22",
-          "ageGroup": "Adult",
-          "mealType": "Dinner",
-          "cookTime": "11 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Pumpkin",
-            "Egg",
-            "Spinach",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the pumpkin.",
-            "Prepare the egg.",
-            "Mix with spinach.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "12 g",
-            "fiber": "5 g",
-            "fat": "8 g",
-            "calories": "146 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 23,
-          "name": "Rice & Turkey Delight #23",
-          "ageGroup": "Senior",
-          "mealType": "Snack",
-          "cookTime": "12 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Rice",
-            "Turkey",
-            "Oats",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the rice.",
-            "Prepare the turkey.",
-            "Mix with oats.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "13 g",
-            "fiber": "6 g",
-            "fat": "9 g",
-            "calories": "149 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 24,
-          "name": "Sweet Potato & Carrot Delight #24",
-          "ageGroup": "Baby",
-          "mealType": "Breakfast",
-          "cookTime": "13 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Sweet Potato",
-            "Carrot",
-            "Chicken",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the sweet potato.",
-            "Prepare the carrot.",
-            "Mix with chicken.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "14 g",
-            "fiber": "1 g",
-            "fat": "2 g",
-            "calories": "152 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 25,
-          "name": "Egg & Spinach Delight #25",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "14 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Egg",
-            "Spinach",
-            "Beef",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the egg.",
-            "Prepare the spinach.",
-            "Mix with beef.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "15 g",
-            "fiber": "2 g",
-            "fat": "3 g",
-            "calories": "155 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 26,
-          "name": "Turkey & Oats Delight #26",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "15 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Turkey",
-            "Oats",
-            "Pumpkin",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the turkey.",
-            "Prepare the oats.",
-            "Mix with pumpkin.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "16 g",
-            "fiber": "3 g",
-            "fat": "4 g",
-            "calories": "158 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 27,
-          "name": "Carrot & Chicken Delight #27",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "16 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Carrot",
-            "Chicken",
-            "Rice",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the carrot.",
-            "Prepare the chicken.",
-            "Mix with rice.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "17 g",
-            "fiber": "4 g",
-            "fat": "5 g",
-            "calories": "161 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 28,
-          "name": "Spinach & Beef Delight #28",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "17 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Spinach",
-            "Beef",
-            "Sweet Potato",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the spinach.",
-            "Prepare the beef.",
-            "Mix with sweet potato.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "18 g",
-            "fiber": "5 g",
-            "fat": "6 g",
-            "calories": "164 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 29,
-          "name": "Oats & Pumpkin Delight #29",
-          "ageGroup": "Senior",
-          "mealType": "Lunch",
-          "cookTime": "18 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Oats",
-            "Pumpkin",
-            "Egg",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the oats.",
-            "Prepare the pumpkin.",
-            "Mix with egg.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "19 g",
-            "fiber": "6 g",
-            "fat": "7 g",
-            "calories": "167 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 30,
-          "name": "Chicken & Rice Delight #30",
-          "ageGroup": "Baby",
-          "mealType": "Dinner",
-          "cookTime": "19 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Chicken",
-            "Rice",
-            "Turkey",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the chicken.",
-            "Prepare the rice.",
-            "Mix with turkey.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "20 g",
-            "fiber": "1 g",
-            "fat": "8 g",
-            "calories": "170 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 31,
-          "name": "Beef & Sweet Potato Delight #31",
-          "ageGroup": "Adult",
-          "mealType": "Snack",
-          "cookTime": "20 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Beef",
-            "Sweet Potato",
-            "Carrot",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the beef.",
-            "Prepare the sweet potato.",
-            "Mix with carrot.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "21 g",
-            "fiber": "2 g",
-            "fat": "9 g",
-            "calories": "173 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 32,
-          "name": "Pumpkin & Egg Delight #32",
-          "ageGroup": "Senior",
-          "mealType": "Breakfast",
-          "cookTime": "21 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Pumpkin",
-            "Egg",
-            "Spinach",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the pumpkin.",
-            "Prepare the egg.",
-            "Mix with spinach.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "22 g",
-            "fiber": "3 g",
-            "fat": "2 g",
-            "calories": "176 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 33,
-          "name": "Rice & Turkey Delight #33",
-          "ageGroup": "Baby",
-          "mealType": "Lunch",
-          "cookTime": "22 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Rice",
-            "Turkey",
-            "Oats",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the rice.",
-            "Prepare the turkey.",
-            "Mix with oats.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "23 g",
-            "fiber": "4 g",
-            "fat": "3 g",
-            "calories": "179 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 34,
-          "name": "Sweet Potato & Carrot Delight #34",
-          "ageGroup": "Adult",
-          "mealType": "Dinner",
-          "cookTime": "23 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Sweet Potato",
-            "Carrot",
-            "Chicken",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the sweet potato.",
-            "Prepare the carrot.",
-            "Mix with chicken.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "24 g",
-            "fiber": "5 g",
-            "fat": "4 g",
-            "calories": "182 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 35,
-          "name": "Egg & Spinach Delight #35",
-          "ageGroup": "Senior",
-          "mealType": "Snack",
-          "cookTime": "24 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Egg",
-            "Spinach",
-            "Beef",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the egg.",
-            "Prepare the spinach.",
-            "Mix with beef.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "25 g",
-            "fiber": "6 g",
-            "fat": "5 g",
-            "calories": "185 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 36,
-          "name": "Turkey & Oats Delight #36",
-          "ageGroup": "Baby",
-          "mealType": "Breakfast",
-          "cookTime": "25 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Turkey",
-            "Oats",
-            "Pumpkin",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the turkey.",
-            "Prepare the oats.",
-            "Mix with pumpkin.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "26 g",
-            "fiber": "1 g",
-            "fat": "6 g",
-            "calories": "188 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 37,
-          "name": "Carrot & Chicken Delight #37",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "26 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Carrot",
-            "Chicken",
-            "Rice",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the carrot.",
-            "Prepare the chicken.",
-            "Mix with rice.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "27 g",
-            "fiber": "2 g",
-            "fat": "7 g",
-            "calories": "191 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 38,
-          "name": "Spinach & Beef Delight #38",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "27 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Spinach",
-            "Beef",
-            "Sweet Potato",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the spinach.",
-            "Prepare the beef.",
-            "Mix with sweet potato.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "28 g",
-            "fiber": "3 g",
-            "fat": "8 g",
-            "calories": "194 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 39,
-          "name": "Oats & Pumpkin Delight #39",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "28 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Oats",
-            "Pumpkin",
-            "Egg",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the oats.",
-            "Prepare the pumpkin.",
-            "Mix with egg.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "29 g",
-            "fiber": "4 g",
-            "fat": "9 g",
-            "calories": "197 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 40,
-          "name": "Chicken & Rice Delight #40",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "29 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Chicken",
-            "Rice",
-            "Turkey",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the chicken.",
-            "Prepare the rice.",
-            "Mix with turkey.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "10 g",
-            "fiber": "5 g",
-            "fat": "2 g",
-            "calories": "200 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 41,
-          "name": "Beef & Sweet Potato Delight #41",
-          "ageGroup": "Senior",
-          "mealType": "Lunch",
-          "cookTime": "30 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Beef",
-            "Sweet Potato",
-            "Carrot",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the beef.",
-            "Prepare the sweet potato.",
-            "Mix with carrot.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "11 g",
-            "fiber": "6 g",
-            "fat": "3 g",
-            "calories": "203 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 42,
-          "name": "Pumpkin & Egg Delight #42",
-          "ageGroup": "Baby",
-          "mealType": "Dinner",
-          "cookTime": "10 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Pumpkin",
-            "Egg",
-            "Spinach",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the pumpkin.",
-            "Prepare the egg.",
-            "Mix with spinach.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "12 g",
-            "fiber": "1 g",
-            "fat": "4 g",
-            "calories": "206 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 43,
-          "name": "Rice & Turkey Delight #43",
-          "ageGroup": "Adult",
-          "mealType": "Snack",
-          "cookTime": "11 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Rice",
-            "Turkey",
-            "Oats",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the rice.",
-            "Prepare the turkey.",
-            "Mix with oats.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "13 g",
-            "fiber": "2 g",
-            "fat": "5 g",
-            "calories": "209 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 44,
-          "name": "Sweet Potato & Carrot Delight #44",
-          "ageGroup": "Senior",
-          "mealType": "Breakfast",
-          "cookTime": "12 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Sweet Potato",
-            "Carrot",
-            "Chicken",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the sweet potato.",
-            "Prepare the carrot.",
-            "Mix with chicken.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "14 g",
-            "fiber": "3 g",
-            "fat": "6 g",
-            "calories": "212 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 45,
-          "name": "Egg & Spinach Delight #45",
-          "ageGroup": "Baby",
-          "mealType": "Lunch",
-          "cookTime": "13 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Egg",
-            "Spinach",
-            "Beef",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the egg.",
-            "Prepare the spinach.",
-            "Mix with beef.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "15 g",
-            "fiber": "4 g",
-            "fat": "7 g",
-            "calories": "215 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 46,
-          "name": "Turkey & Oats Delight #46",
-          "ageGroup": "Adult",
-          "mealType": "Dinner",
-          "cookTime": "14 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Turkey",
-            "Oats",
-            "Pumpkin",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the turkey.",
-            "Prepare the oats.",
-            "Mix with pumpkin.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "16 g",
-            "fiber": "5 g",
-            "fat": "8 g",
-            "calories": "218 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 47,
-          "name": "Carrot & Chicken Delight #47",
-          "ageGroup": "Senior",
-          "mealType": "Snack",
-          "cookTime": "15 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Carrot",
-            "Chicken",
-            "Rice",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the carrot.",
-            "Prepare the chicken.",
-            "Mix with rice.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "17 g",
-            "fiber": "6 g",
-            "fat": "9 g",
-            "calories": "221 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 48,
-          "name": "Spinach & Beef Delight #48",
-          "ageGroup": "Baby",
-          "mealType": "Breakfast",
-          "cookTime": "16 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Spinach",
-            "Beef",
-            "Sweet Potato",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the spinach.",
-            "Prepare the beef.",
-            "Mix with sweet potato.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "18 g",
-            "fiber": "1 g",
-            "fat": "2 g",
-            "calories": "224 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 49,
-          "name": "Oats & Pumpkin Delight #49",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "17 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Oats",
-            "Pumpkin",
-            "Egg",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the oats.",
-            "Prepare the pumpkin.",
-            "Mix with egg.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "19 g",
-            "fiber": "2 g",
-            "fat": "3 g",
-            "calories": "227 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 50,
-          "name": "Chicken & Rice Delight #50",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "18 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Chicken",
-            "Rice",
-            "Turkey",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the chicken.",
-            "Prepare the rice.",
-            "Mix with turkey.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "20 g",
-            "fiber": "3 g",
-            "fat": "4 g",
-            "calories": "230 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 51,
-          "name": "Beef & Sweet Potato Delight #51",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "19 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Beef",
-            "Sweet Potato",
-            "Carrot",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the beef.",
-            "Prepare the sweet potato.",
-            "Mix with carrot.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "21 g",
-            "fiber": "4 g",
-            "fat": "5 g",
-            "calories": "233 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 52,
-          "name": "Pumpkin & Egg Delight #52",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "20 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Pumpkin",
-            "Egg",
-            "Spinach",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the pumpkin.",
-            "Prepare the egg.",
-            "Mix with spinach.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "22 g",
-            "fiber": "5 g",
-            "fat": "6 g",
-            "calories": "236 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 53,
-          "name": "Rice & Turkey Delight #53",
-          "ageGroup": "Senior",
-          "mealType": "Lunch",
-          "cookTime": "21 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Rice",
-            "Turkey",
-            "Oats",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the rice.",
-            "Prepare the turkey.",
-            "Mix with oats.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "23 g",
-            "fiber": "6 g",
-            "fat": "7 g",
-            "calories": "239 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 54,
-          "name": "Sweet Potato & Carrot Delight #54",
-          "ageGroup": "Baby",
-          "mealType": "Dinner",
-          "cookTime": "22 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Sweet Potato",
-            "Carrot",
-            "Chicken",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the sweet potato.",
-            "Prepare the carrot.",
-            "Mix with chicken.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "24 g",
-            "fiber": "1 g",
-            "fat": "8 g",
-            "calories": "242 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 55,
-          "name": "Egg & Spinach Delight #55",
-          "ageGroup": "Adult",
-          "mealType": "Snack",
-          "cookTime": "23 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Egg",
-            "Spinach",
-            "Beef",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the egg.",
-            "Prepare the spinach.",
-            "Mix with beef.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "25 g",
-            "fiber": "2 g",
-            "fat": "9 g",
-            "calories": "245 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 56,
-          "name": "Turkey & Oats Delight #56",
-          "ageGroup": "Senior",
-          "mealType": "Breakfast",
-          "cookTime": "24 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Turkey",
-            "Oats",
-            "Pumpkin",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the turkey.",
-            "Prepare the oats.",
-            "Mix with pumpkin.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "26 g",
-            "fiber": "3 g",
-            "fat": "2 g",
-            "calories": "248 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 57,
-          "name": "Carrot & Chicken Delight #57",
-          "ageGroup": "Baby",
-          "mealType": "Lunch",
-          "cookTime": "25 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Carrot",
-            "Chicken",
-            "Rice",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the carrot.",
-            "Prepare the chicken.",
-            "Mix with rice.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "27 g",
-            "fiber": "4 g",
-            "fat": "3 g",
-            "calories": "251 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 58,
-          "name": "Spinach & Beef Delight #58",
-          "ageGroup": "Adult",
-          "mealType": "Dinner",
-          "cookTime": "26 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Spinach",
-            "Beef",
-            "Sweet Potato",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the spinach.",
-            "Prepare the beef.",
-            "Mix with sweet potato.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "28 g",
-            "fiber": "5 g",
-            "fat": "4 g",
-            "calories": "254 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 59,
-          "name": "Oats & Pumpkin Delight #59",
-          "ageGroup": "Senior",
-          "mealType": "Snack",
-          "cookTime": "27 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Oats",
-            "Pumpkin",
-            "Egg",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the oats.",
-            "Prepare the pumpkin.",
-            "Mix with egg.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "29 g",
-            "fiber": "6 g",
-            "fat": "5 g",
-            "calories": "257 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 60,
-          "name": "Chicken & Rice Delight #60",
-          "ageGroup": "Baby",
-          "mealType": "Breakfast",
-          "cookTime": "28 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Chicken",
-            "Rice",
-            "Turkey",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the chicken.",
-            "Prepare the rice.",
-            "Mix with turkey.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "10 g",
-            "fiber": "1 g",
-            "fat": "6 g",
-            "calories": "260 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 61,
-          "name": "Beef & Sweet Potato Delight #61",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "29 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Beef",
-            "Sweet Potato",
-            "Carrot",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the beef.",
-            "Prepare the sweet potato.",
-            "Mix with carrot.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "11 g",
-            "fiber": "2 g",
-            "fat": "7 g",
-            "calories": "263 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 62,
-          "name": "Pumpkin & Egg Delight #62",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "30 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Pumpkin",
-            "Egg",
-            "Spinach",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the pumpkin.",
-            "Prepare the egg.",
-            "Mix with spinach.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "12 g",
-            "fiber": "3 g",
-            "fat": "8 g",
-            "calories": "266 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 63,
-          "name": "Rice & Turkey Delight #63",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "10 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Rice",
-            "Turkey",
-            "Oats",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the rice.",
-            "Prepare the turkey.",
-            "Mix with oats.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "13 g",
-            "fiber": "4 g",
-            "fat": "9 g",
-            "calories": "269 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 64,
-          "name": "Sweet Potato & Carrot Delight #64",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "11 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Sweet Potato",
-            "Carrot",
-            "Chicken",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the sweet potato.",
-            "Prepare the carrot.",
-            "Mix with chicken.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "14 g",
-            "fiber": "5 g",
-            "fat": "2 g",
-            "calories": "272 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 65,
-          "name": "Egg & Spinach Delight #65",
-          "ageGroup": "Senior",
-          "mealType": "Lunch",
-          "cookTime": "12 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Egg",
-            "Spinach",
-            "Beef",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the egg.",
-            "Prepare the spinach.",
-            "Mix with beef.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "15 g",
-            "fiber": "6 g",
-            "fat": "3 g",
-            "calories": "275 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 66,
-          "name": "Turkey & Oats Delight #66",
-          "ageGroup": "Baby",
-          "mealType": "Dinner",
-          "cookTime": "13 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Turkey",
-            "Oats",
-            "Pumpkin",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the turkey.",
-            "Prepare the oats.",
-            "Mix with pumpkin.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "16 g",
-            "fiber": "1 g",
-            "fat": "4 g",
-            "calories": "278 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 67,
-          "name": "Carrot & Chicken Delight #67",
-          "ageGroup": "Adult",
-          "mealType": "Snack",
-          "cookTime": "14 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Carrot",
-            "Chicken",
-            "Rice",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the carrot.",
-            "Prepare the chicken.",
-            "Mix with rice.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "17 g",
-            "fiber": "2 g",
-            "fat": "5 g",
-            "calories": "281 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 68,
-          "name": "Spinach & Beef Delight #68",
-          "ageGroup": "Senior",
-          "mealType": "Breakfast",
-          "cookTime": "15 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Spinach",
-            "Beef",
-            "Sweet Potato",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the spinach.",
-            "Prepare the beef.",
-            "Mix with sweet potato.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "18 g",
-            "fiber": "3 g",
-            "fat": "6 g",
-            "calories": "284 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 69,
-          "name": "Oats & Pumpkin Delight #69",
-          "ageGroup": "Baby",
-          "mealType": "Lunch",
-          "cookTime": "16 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Oats",
-            "Pumpkin",
-            "Egg",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the oats.",
-            "Prepare the pumpkin.",
-            "Mix with egg.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "19 g",
-            "fiber": "4 g",
-            "fat": "7 g",
-            "calories": "287 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 70,
-          "name": "Chicken & Rice Delight #70",
-          "ageGroup": "Adult",
-          "mealType": "Dinner",
-          "cookTime": "17 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Chicken",
-            "Rice",
-            "Turkey",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the chicken.",
-            "Prepare the rice.",
-            "Mix with turkey.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "20 g",
-            "fiber": "5 g",
-            "fat": "8 g",
-            "calories": "290 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 71,
-          "name": "Beef & Sweet Potato Delight #71",
-          "ageGroup": "Senior",
-          "mealType": "Snack",
-          "cookTime": "18 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Beef",
-            "Sweet Potato",
-            "Carrot",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the beef.",
-            "Prepare the sweet potato.",
-            "Mix with carrot.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "21 g",
-            "fiber": "6 g",
-            "fat": "9 g",
-            "calories": "293 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 72,
-          "name": "Pumpkin & Egg Delight #72",
-          "ageGroup": "Baby",
-          "mealType": "Breakfast",
-          "cookTime": "19 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Pumpkin",
-            "Egg",
-            "Spinach",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the pumpkin.",
-            "Prepare the egg.",
-            "Mix with spinach.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "22 g",
-            "fiber": "1 g",
-            "fat": "2 g",
-            "calories": "296 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 73,
-          "name": "Rice & Turkey Delight #73",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "20 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Rice",
-            "Turkey",
-            "Oats",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the rice.",
-            "Prepare the turkey.",
-            "Mix with oats.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "23 g",
-            "fiber": "2 g",
-            "fat": "3 g",
-            "calories": "299 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 74,
-          "name": "Sweet Potato & Carrot Delight #74",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "21 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Sweet Potato",
-            "Carrot",
-            "Chicken",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the sweet potato.",
-            "Prepare the carrot.",
-            "Mix with chicken.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "24 g",
-            "fiber": "3 g",
-            "fat": "4 g",
-            "calories": "302 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 75,
-          "name": "Egg & Spinach Delight #75",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "22 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Egg",
-            "Spinach",
-            "Beef",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the egg.",
-            "Prepare the spinach.",
-            "Mix with beef.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "25 g",
-            "fiber": "4 g",
-            "fat": "5 g",
-            "calories": "305 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 76,
-          "name": "Turkey & Oats Delight #76",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "23 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Turkey",
-            "Oats",
-            "Pumpkin",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the turkey.",
-            "Prepare the oats.",
-            "Mix with pumpkin.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "26 g",
-            "fiber": "5 g",
-            "fat": "6 g",
-            "calories": "308 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 77,
-          "name": "Carrot & Chicken Delight #77",
-          "ageGroup": "Senior",
-          "mealType": "Lunch",
-          "cookTime": "24 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Carrot",
-            "Chicken",
-            "Rice",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the carrot.",
-            "Prepare the chicken.",
-            "Mix with rice.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "27 g",
-            "fiber": "6 g",
-            "fat": "7 g",
-            "calories": "311 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 78,
-          "name": "Spinach & Beef Delight #78",
-          "ageGroup": "Baby",
-          "mealType": "Dinner",
-          "cookTime": "25 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Spinach",
-            "Beef",
-            "Sweet Potato",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the spinach.",
-            "Prepare the beef.",
-            "Mix with sweet potato.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "28 g",
-            "fiber": "1 g",
-            "fat": "8 g",
-            "calories": "314 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 79,
-          "name": "Oats & Pumpkin Delight #79",
-          "ageGroup": "Adult",
-          "mealType": "Snack",
-          "cookTime": "26 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Oats",
-            "Pumpkin",
-            "Egg",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the oats.",
-            "Prepare the pumpkin.",
-            "Mix with egg.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "29 g",
-            "fiber": "2 g",
-            "fat": "9 g",
-            "calories": "317 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 80,
-          "name": "Chicken & Rice Delight #80",
-          "ageGroup": "Senior",
-          "mealType": "Breakfast",
-          "cookTime": "27 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Chicken",
-            "Rice",
-            "Turkey",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the chicken.",
-            "Prepare the rice.",
-            "Mix with turkey.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "10 g",
-            "fiber": "3 g",
-            "fat": "2 g",
-            "calories": "320 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 81,
-          "name": "Beef & Sweet Potato Delight #81",
-          "ageGroup": "Baby",
-          "mealType": "Lunch",
-          "cookTime": "28 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Beef",
-            "Sweet Potato",
-            "Carrot",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the beef.",
-            "Prepare the sweet potato.",
-            "Mix with carrot.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "11 g",
-            "fiber": "4 g",
-            "fat": "3 g",
-            "calories": "323 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 82,
-          "name": "Pumpkin & Egg Delight #82",
-          "ageGroup": "Adult",
-          "mealType": "Dinner",
-          "cookTime": "29 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Pumpkin",
-            "Egg",
-            "Spinach",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the pumpkin.",
-            "Prepare the egg.",
-            "Mix with spinach.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "12 g",
-            "fiber": "5 g",
-            "fat": "4 g",
-            "calories": "326 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 83,
-          "name": "Rice & Turkey Delight #83",
-          "ageGroup": "Senior",
-          "mealType": "Snack",
-          "cookTime": "30 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Rice",
-            "Turkey",
-            "Oats",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the rice.",
-            "Prepare the turkey.",
-            "Mix with oats.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "13 g",
-            "fiber": "6 g",
-            "fat": "5 g",
-            "calories": "329 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 84,
-          "name": "Sweet Potato & Carrot Delight #84",
-          "ageGroup": "Baby",
-          "mealType": "Breakfast",
-          "cookTime": "10 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Sweet Potato",
-            "Carrot",
-            "Chicken",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the sweet potato.",
-            "Prepare the carrot.",
-            "Mix with chicken.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "14 g",
-            "fiber": "1 g",
-            "fat": "6 g",
-            "calories": "332 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 85,
-          "name": "Egg & Spinach Delight #85",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "11 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Egg",
-            "Spinach",
-            "Beef",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the egg.",
-            "Prepare the spinach.",
-            "Mix with beef.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "15 g",
-            "fiber": "2 g",
-            "fat": "7 g",
-            "calories": "335 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 86,
-          "name": "Turkey & Oats Delight #86",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "12 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Turkey",
-            "Oats",
-            "Pumpkin",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the turkey.",
-            "Prepare the oats.",
-            "Mix with pumpkin.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "16 g",
-            "fiber": "3 g",
-            "fat": "8 g",
-            "calories": "338 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 87,
-          "name": "Carrot & Chicken Delight #87",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "13 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Carrot",
-            "Chicken",
-            "Rice",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the carrot.",
-            "Prepare the chicken.",
-            "Mix with rice.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "17 g",
-            "fiber": "4 g",
-            "fat": "9 g",
-            "calories": "341 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 88,
-          "name": "Spinach & Beef Delight #88",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "14 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Spinach",
-            "Beef",
-            "Sweet Potato",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the spinach.",
-            "Prepare the beef.",
-            "Mix with sweet potato.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "18 g",
-            "fiber": "5 g",
-            "fat": "2 g",
-            "calories": "344 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 89,
-          "name": "Oats & Pumpkin Delight #89",
-          "ageGroup": "Senior",
-          "mealType": "Lunch",
-          "cookTime": "15 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Oats",
-            "Pumpkin",
-            "Egg",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the oats.",
-            "Prepare the pumpkin.",
-            "Mix with egg.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "19 g",
-            "fiber": "6 g",
-            "fat": "3 g",
-            "calories": "347 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 90,
-          "name": "Chicken & Rice Delight #90",
-          "ageGroup": "Baby",
-          "mealType": "Dinner",
-          "cookTime": "16 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Chicken",
-            "Rice",
-            "Turkey",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the chicken.",
-            "Prepare the rice.",
-            "Mix with turkey.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "20 g",
-            "fiber": "1 g",
-            "fat": "4 g",
-            "calories": "350 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 91,
-          "name": "Beef & Sweet Potato Delight #91",
-          "ageGroup": "Adult",
-          "mealType": "Snack",
-          "cookTime": "17 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Beef",
-            "Sweet Potato",
-            "Carrot",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the beef.",
-            "Prepare the sweet potato.",
-            "Mix with carrot.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "21 g",
-            "fiber": "2 g",
-            "fat": "5 g",
-            "calories": "353 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 92,
-          "name": "Pumpkin & Egg Delight #92",
-          "ageGroup": "Senior",
-          "mealType": "Breakfast",
-          "cookTime": "18 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Pumpkin",
-            "Egg",
-            "Spinach",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the pumpkin.",
-            "Prepare the egg.",
-            "Mix with spinach.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "22 g",
-            "fiber": "3 g",
-            "fat": "6 g",
-            "calories": "356 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 93,
-          "name": "Rice & Turkey Delight #93",
-          "ageGroup": "Baby",
-          "mealType": "Lunch",
-          "cookTime": "19 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Rice",
-            "Turkey",
-            "Oats",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the rice.",
-            "Prepare the turkey.",
-            "Mix with oats.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "23 g",
-            "fiber": "4 g",
-            "fat": "7 g",
-            "calories": "359 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 94,
-          "name": "Sweet Potato & Carrot Delight #94",
-          "ageGroup": "Adult",
-          "mealType": "Dinner",
-          "cookTime": "20 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Sweet Potato",
-            "Carrot",
-            "Chicken",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the sweet potato.",
-            "Prepare the carrot.",
-            "Mix with chicken.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "24 g",
-            "fiber": "5 g",
-            "fat": "8 g",
-            "calories": "362 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 95,
-          "name": "Egg & Spinach Delight #95",
-          "ageGroup": "Senior",
-          "mealType": "Snack",
-          "cookTime": "21 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Egg",
-            "Spinach",
-            "Beef",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the egg.",
-            "Prepare the spinach.",
-            "Mix with beef.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "25 g",
-            "fiber": "6 g",
-            "fat": "9 g",
-            "calories": "365 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 96,
-          "name": "Turkey & Oats Delight #96",
-          "ageGroup": "Baby",
-          "mealType": "Breakfast",
-          "cookTime": "22 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Turkey",
-            "Oats",
-            "Pumpkin",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the turkey.",
-            "Prepare the oats.",
-            "Mix with pumpkin.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "26 g",
-            "fiber": "1 g",
-            "fat": "2 g",
-            "calories": "368 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 97,
-          "name": "Carrot & Chicken Delight #97",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "23 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Carrot",
-            "Chicken",
-            "Rice",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the carrot.",
-            "Prepare the chicken.",
-            "Mix with rice.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "27 g",
-            "fiber": "2 g",
-            "fat": "3 g",
-            "calories": "371 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 98,
-          "name": "Spinach & Beef Delight #98",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "24 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Spinach",
-            "Beef",
-            "Sweet Potato",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the spinach.",
-            "Prepare the beef.",
-            "Mix with sweet potato.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "28 g",
-            "fiber": "3 g",
-            "fat": "4 g",
-            "calories": "374 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 99,
-          "name": "Oats & Pumpkin Delight #99",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "25 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Oats",
-            "Pumpkin",
-            "Egg",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the oats.",
-            "Prepare the pumpkin.",
-            "Mix with egg.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "29 g",
-            "fiber": "4 g",
-            "fat": "5 g",
-            "calories": "377 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 100,
-          "name": "Chicken & Rice Delight #100",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "26 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Chicken",
-            "Rice",
-            "Turkey",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the chicken.",
-            "Prepare the rice.",
-            "Mix with turkey.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "10 g",
-            "fiber": "5 g",
-            "fat": "6 g",
-            "calories": "380 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        }
-      ],
-      "cat": [
-        {
-          "id": 1,
-          "name": "Tuna & Egg Delight #1",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "11 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Tuna",
-            "Egg",
-            "Liver",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the tuna.",
-            "Prepare the egg.",
-            "Mix with liver.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "11 g",
-            "fiber": "2 g",
-            "fat": "3 g",
-            "calories": "83 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 2,
-          "name": "Salmon & Pumpkin Delight #2",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "12 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Salmon",
-            "Pumpkin",
-            "Rice",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the salmon.",
-            "Prepare the pumpkin.",
-            "Mix with rice.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "12 g",
-            "fiber": "3 g",
-            "fat": "4 g",
-            "calories": "86 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 3,
-          "name": "Turkey & Sardine Delight #3",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "13 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Turkey",
-            "Sardine",
-            "Duck",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the turkey.",
-            "Prepare the sardine.",
-            "Mix with duck.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "13 g",
-            "fiber": "4 g",
-            "fat": "5 g",
-            "calories": "89 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 4,
-          "name": "Egg & Liver Delight #4",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "14 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Egg",
-            "Liver",
-            "Chicken",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the egg.",
-            "Prepare the liver.",
-            "Mix with chicken.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "14 g",
-            "fiber": "5 g",
-            "fat": "6 g",
-            "calories": "92 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 5,
-          "name": "Pumpkin & Rice Delight #5",
-          "ageGroup": "Senior",
-          "mealType": "Lunch",
-          "cookTime": "15 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Pumpkin",
-            "Rice",
-            "Tuna",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the pumpkin.",
-            "Prepare the rice.",
-            "Mix with tuna.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "15 g",
-            "fiber": "6 g",
-            "fat": "7 g",
-            "calories": "95 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 6,
-          "name": "Sardine & Duck Delight #6",
-          "ageGroup": "Baby",
-          "mealType": "Dinner",
-          "cookTime": "16 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Sardine",
-            "Duck",
-            "Salmon",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the sardine.",
-            "Prepare the duck.",
-            "Mix with salmon.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "16 g",
-            "fiber": "1 g",
-            "fat": "8 g",
-            "calories": "98 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 7,
-          "name": "Liver & Chicken Delight #7",
-          "ageGroup": "Adult",
-          "mealType": "Snack",
-          "cookTime": "17 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Liver",
-            "Chicken",
-            "Turkey",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the liver.",
-            "Prepare the chicken.",
-            "Mix with turkey.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "17 g",
-            "fiber": "2 g",
-            "fat": "9 g",
-            "calories": "101 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 8,
-          "name": "Rice & Tuna Delight #8",
-          "ageGroup": "Senior",
-          "mealType": "Breakfast",
-          "cookTime": "18 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Rice",
-            "Tuna",
-            "Egg",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the rice.",
-            "Prepare the tuna.",
-            "Mix with egg.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "18 g",
-            "fiber": "3 g",
-            "fat": "2 g",
-            "calories": "104 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 9,
-          "name": "Duck & Salmon Delight #9",
-          "ageGroup": "Baby",
-          "mealType": "Lunch",
-          "cookTime": "19 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Duck",
-            "Salmon",
-            "Pumpkin",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the duck.",
-            "Prepare the salmon.",
-            "Mix with pumpkin.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "19 g",
-            "fiber": "4 g",
-            "fat": "3 g",
-            "calories": "107 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 10,
-          "name": "Chicken & Turkey Delight #10",
-          "ageGroup": "Adult",
-          "mealType": "Dinner",
-          "cookTime": "20 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Chicken",
-            "Turkey",
-            "Sardine",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the chicken.",
-            "Prepare the turkey.",
-            "Mix with sardine.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "20 g",
-            "fiber": "5 g",
-            "fat": "4 g",
-            "calories": "110 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 11,
-          "name": "Tuna & Egg Delight #11",
-          "ageGroup": "Senior",
-          "mealType": "Snack",
-          "cookTime": "21 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Tuna",
-            "Egg",
-            "Liver",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the tuna.",
-            "Prepare the egg.",
-            "Mix with liver.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "21 g",
-            "fiber": "6 g",
-            "fat": "5 g",
-            "calories": "113 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 12,
-          "name": "Salmon & Pumpkin Delight #12",
-          "ageGroup": "Baby",
-          "mealType": "Breakfast",
-          "cookTime": "22 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Salmon",
-            "Pumpkin",
-            "Rice",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the salmon.",
-            "Prepare the pumpkin.",
-            "Mix with rice.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "22 g",
-            "fiber": "1 g",
-            "fat": "6 g",
-            "calories": "116 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 13,
-          "name": "Turkey & Sardine Delight #13",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "23 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Turkey",
-            "Sardine",
-            "Duck",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the turkey.",
-            "Prepare the sardine.",
-            "Mix with duck.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "23 g",
-            "fiber": "2 g",
-            "fat": "7 g",
-            "calories": "119 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 14,
-          "name": "Egg & Liver Delight #14",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "24 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Egg",
-            "Liver",
-            "Chicken",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the egg.",
-            "Prepare the liver.",
-            "Mix with chicken.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "24 g",
-            "fiber": "3 g",
-            "fat": "8 g",
-            "calories": "122 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 15,
-          "name": "Pumpkin & Rice Delight #15",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "25 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Pumpkin",
-            "Rice",
-            "Tuna",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the pumpkin.",
-            "Prepare the rice.",
-            "Mix with tuna.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "25 g",
-            "fiber": "4 g",
-            "fat": "9 g",
-            "calories": "125 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 16,
-          "name": "Sardine & Duck Delight #16",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "26 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Sardine",
-            "Duck",
-            "Salmon",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the sardine.",
-            "Prepare the duck.",
-            "Mix with salmon.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "26 g",
-            "fiber": "5 g",
-            "fat": "2 g",
-            "calories": "128 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 17,
-          "name": "Liver & Chicken Delight #17",
-          "ageGroup": "Senior",
-          "mealType": "Lunch",
-          "cookTime": "27 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Liver",
-            "Chicken",
-            "Turkey",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the liver.",
-            "Prepare the chicken.",
-            "Mix with turkey.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "27 g",
-            "fiber": "6 g",
-            "fat": "3 g",
-            "calories": "131 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 18,
-          "name": "Rice & Tuna Delight #18",
-          "ageGroup": "Baby",
-          "mealType": "Dinner",
-          "cookTime": "28 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Rice",
-            "Tuna",
-            "Egg",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the rice.",
-            "Prepare the tuna.",
-            "Mix with egg.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "28 g",
-            "fiber": "1 g",
-            "fat": "4 g",
-            "calories": "134 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 19,
-          "name": "Duck & Salmon Delight #19",
-          "ageGroup": "Adult",
-          "mealType": "Snack",
-          "cookTime": "29 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Duck",
-            "Salmon",
-            "Pumpkin",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the duck.",
-            "Prepare the salmon.",
-            "Mix with pumpkin.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "29 g",
-            "fiber": "2 g",
-            "fat": "5 g",
-            "calories": "137 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 20,
-          "name": "Chicken & Turkey Delight #20",
-          "ageGroup": "Senior",
-          "mealType": "Breakfast",
-          "cookTime": "30 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Chicken",
-            "Turkey",
-            "Sardine",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the chicken.",
-            "Prepare the turkey.",
-            "Mix with sardine.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "10 g",
-            "fiber": "3 g",
-            "fat": "6 g",
-            "calories": "140 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 21,
-          "name": "Tuna & Egg Delight #21",
-          "ageGroup": "Baby",
-          "mealType": "Lunch",
-          "cookTime": "10 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Tuna",
-            "Egg",
-            "Liver",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the tuna.",
-            "Prepare the egg.",
-            "Mix with liver.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "11 g",
-            "fiber": "4 g",
-            "fat": "7 g",
-            "calories": "143 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 22,
-          "name": "Salmon & Pumpkin Delight #22",
-          "ageGroup": "Adult",
-          "mealType": "Dinner",
-          "cookTime": "11 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Salmon",
-            "Pumpkin",
-            "Rice",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the salmon.",
-            "Prepare the pumpkin.",
-            "Mix with rice.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "12 g",
-            "fiber": "5 g",
-            "fat": "8 g",
-            "calories": "146 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 23,
-          "name": "Turkey & Sardine Delight #23",
-          "ageGroup": "Senior",
-          "mealType": "Snack",
-          "cookTime": "12 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Turkey",
-            "Sardine",
-            "Duck",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the turkey.",
-            "Prepare the sardine.",
-            "Mix with duck.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "13 g",
-            "fiber": "6 g",
-            "fat": "9 g",
-            "calories": "149 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 24,
-          "name": "Egg & Liver Delight #24",
-          "ageGroup": "Baby",
-          "mealType": "Breakfast",
-          "cookTime": "13 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Egg",
-            "Liver",
-            "Chicken",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the egg.",
-            "Prepare the liver.",
-            "Mix with chicken.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "14 g",
-            "fiber": "1 g",
-            "fat": "2 g",
-            "calories": "152 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 25,
-          "name": "Pumpkin & Rice Delight #25",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "14 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Pumpkin",
-            "Rice",
-            "Tuna",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the pumpkin.",
-            "Prepare the rice.",
-            "Mix with tuna.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "15 g",
-            "fiber": "2 g",
-            "fat": "3 g",
-            "calories": "155 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 26,
-          "name": "Sardine & Duck Delight #26",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "15 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Sardine",
-            "Duck",
-            "Salmon",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the sardine.",
-            "Prepare the duck.",
-            "Mix with salmon.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "16 g",
-            "fiber": "3 g",
-            "fat": "4 g",
-            "calories": "158 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 27,
-          "name": "Liver & Chicken Delight #27",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "16 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Liver",
-            "Chicken",
-            "Turkey",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the liver.",
-            "Prepare the chicken.",
-            "Mix with turkey.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "17 g",
-            "fiber": "4 g",
-            "fat": "5 g",
-            "calories": "161 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 28,
-          "name": "Rice & Tuna Delight #28",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "17 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Rice",
-            "Tuna",
-            "Egg",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the rice.",
-            "Prepare the tuna.",
-            "Mix with egg.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "18 g",
-            "fiber": "5 g",
-            "fat": "6 g",
-            "calories": "164 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 29,
-          "name": "Duck & Salmon Delight #29",
-          "ageGroup": "Senior",
-          "mealType": "Lunch",
-          "cookTime": "18 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Duck",
-            "Salmon",
-            "Pumpkin",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the duck.",
-            "Prepare the salmon.",
-            "Mix with pumpkin.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "19 g",
-            "fiber": "6 g",
-            "fat": "7 g",
-            "calories": "167 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 30,
-          "name": "Chicken & Turkey Delight #30",
-          "ageGroup": "Baby",
-          "mealType": "Dinner",
-          "cookTime": "19 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Chicken",
-            "Turkey",
-            "Sardine",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the chicken.",
-            "Prepare the turkey.",
-            "Mix with sardine.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "20 g",
-            "fiber": "1 g",
-            "fat": "8 g",
-            "calories": "170 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 31,
-          "name": "Tuna & Egg Delight #31",
-          "ageGroup": "Adult",
-          "mealType": "Snack",
-          "cookTime": "20 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Tuna",
-            "Egg",
-            "Liver",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the tuna.",
-            "Prepare the egg.",
-            "Mix with liver.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "21 g",
-            "fiber": "2 g",
-            "fat": "9 g",
-            "calories": "173 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 32,
-          "name": "Salmon & Pumpkin Delight #32",
-          "ageGroup": "Senior",
-          "mealType": "Breakfast",
-          "cookTime": "21 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Salmon",
-            "Pumpkin",
-            "Rice",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the salmon.",
-            "Prepare the pumpkin.",
-            "Mix with rice.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "22 g",
-            "fiber": "3 g",
-            "fat": "2 g",
-            "calories": "176 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 33,
-          "name": "Turkey & Sardine Delight #33",
-          "ageGroup": "Baby",
-          "mealType": "Lunch",
-          "cookTime": "22 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Turkey",
-            "Sardine",
-            "Duck",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the turkey.",
-            "Prepare the sardine.",
-            "Mix with duck.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "23 g",
-            "fiber": "4 g",
-            "fat": "3 g",
-            "calories": "179 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 34,
-          "name": "Egg & Liver Delight #34",
-          "ageGroup": "Adult",
-          "mealType": "Dinner",
-          "cookTime": "23 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Egg",
-            "Liver",
-            "Chicken",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the egg.",
-            "Prepare the liver.",
-            "Mix with chicken.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "24 g",
-            "fiber": "5 g",
-            "fat": "4 g",
-            "calories": "182 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 35,
-          "name": "Pumpkin & Rice Delight #35",
-          "ageGroup": "Senior",
-          "mealType": "Snack",
-          "cookTime": "24 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Pumpkin",
-            "Rice",
-            "Tuna",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the pumpkin.",
-            "Prepare the rice.",
-            "Mix with tuna.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "25 g",
-            "fiber": "6 g",
-            "fat": "5 g",
-            "calories": "185 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 36,
-          "name": "Sardine & Duck Delight #36",
-          "ageGroup": "Baby",
-          "mealType": "Breakfast",
-          "cookTime": "25 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Sardine",
-            "Duck",
-            "Salmon",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the sardine.",
-            "Prepare the duck.",
-            "Mix with salmon.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "26 g",
-            "fiber": "1 g",
-            "fat": "6 g",
-            "calories": "188 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 37,
-          "name": "Liver & Chicken Delight #37",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "26 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Liver",
-            "Chicken",
-            "Turkey",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the liver.",
-            "Prepare the chicken.",
-            "Mix with turkey.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "27 g",
-            "fiber": "2 g",
-            "fat": "7 g",
-            "calories": "191 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 38,
-          "name": "Rice & Tuna Delight #38",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "27 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Rice",
-            "Tuna",
-            "Egg",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the rice.",
-            "Prepare the tuna.",
-            "Mix with egg.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "28 g",
-            "fiber": "3 g",
-            "fat": "8 g",
-            "calories": "194 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 39,
-          "name": "Duck & Salmon Delight #39",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "28 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Duck",
-            "Salmon",
-            "Pumpkin",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the duck.",
-            "Prepare the salmon.",
-            "Mix with pumpkin.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "29 g",
-            "fiber": "4 g",
-            "fat": "9 g",
-            "calories": "197 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 40,
-          "name": "Chicken & Turkey Delight #40",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "29 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Chicken",
-            "Turkey",
-            "Sardine",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the chicken.",
-            "Prepare the turkey.",
-            "Mix with sardine.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "10 g",
-            "fiber": "5 g",
-            "fat": "2 g",
-            "calories": "200 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 41,
-          "name": "Tuna & Egg Delight #41",
-          "ageGroup": "Senior",
-          "mealType": "Lunch",
-          "cookTime": "30 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Tuna",
-            "Egg",
-            "Liver",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the tuna.",
-            "Prepare the egg.",
-            "Mix with liver.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "11 g",
-            "fiber": "6 g",
-            "fat": "3 g",
-            "calories": "203 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 42,
-          "name": "Salmon & Pumpkin Delight #42",
-          "ageGroup": "Baby",
-          "mealType": "Dinner",
-          "cookTime": "10 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Salmon",
-            "Pumpkin",
-            "Rice",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the salmon.",
-            "Prepare the pumpkin.",
-            "Mix with rice.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "12 g",
-            "fiber": "1 g",
-            "fat": "4 g",
-            "calories": "206 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 43,
-          "name": "Turkey & Sardine Delight #43",
-          "ageGroup": "Adult",
-          "mealType": "Snack",
-          "cookTime": "11 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Turkey",
-            "Sardine",
-            "Duck",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the turkey.",
-            "Prepare the sardine.",
-            "Mix with duck.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "13 g",
-            "fiber": "2 g",
-            "fat": "5 g",
-            "calories": "209 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 44,
-          "name": "Egg & Liver Delight #44",
-          "ageGroup": "Senior",
-          "mealType": "Breakfast",
-          "cookTime": "12 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Egg",
-            "Liver",
-            "Chicken",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the egg.",
-            "Prepare the liver.",
-            "Mix with chicken.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "14 g",
-            "fiber": "3 g",
-            "fat": "6 g",
-            "calories": "212 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 45,
-          "name": "Pumpkin & Rice Delight #45",
-          "ageGroup": "Baby",
-          "mealType": "Lunch",
-          "cookTime": "13 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Pumpkin",
-            "Rice",
-            "Tuna",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the pumpkin.",
-            "Prepare the rice.",
-            "Mix with tuna.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "15 g",
-            "fiber": "4 g",
-            "fat": "7 g",
-            "calories": "215 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 46,
-          "name": "Sardine & Duck Delight #46",
-          "ageGroup": "Adult",
-          "mealType": "Dinner",
-          "cookTime": "14 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Sardine",
-            "Duck",
-            "Salmon",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the sardine.",
-            "Prepare the duck.",
-            "Mix with salmon.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "16 g",
-            "fiber": "5 g",
-            "fat": "8 g",
-            "calories": "218 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 47,
-          "name": "Liver & Chicken Delight #47",
-          "ageGroup": "Senior",
-          "mealType": "Snack",
-          "cookTime": "15 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Liver",
-            "Chicken",
-            "Turkey",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the liver.",
-            "Prepare the chicken.",
-            "Mix with turkey.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "17 g",
-            "fiber": "6 g",
-            "fat": "9 g",
-            "calories": "221 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 48,
-          "name": "Rice & Tuna Delight #48",
-          "ageGroup": "Baby",
-          "mealType": "Breakfast",
-          "cookTime": "16 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Rice",
-            "Tuna",
-            "Egg",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the rice.",
-            "Prepare the tuna.",
-            "Mix with egg.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "18 g",
-            "fiber": "1 g",
-            "fat": "2 g",
-            "calories": "224 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 49,
-          "name": "Duck & Salmon Delight #49",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "17 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Duck",
-            "Salmon",
-            "Pumpkin",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the duck.",
-            "Prepare the salmon.",
-            "Mix with pumpkin.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "19 g",
-            "fiber": "2 g",
-            "fat": "3 g",
-            "calories": "227 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 50,
-          "name": "Chicken & Turkey Delight #50",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "18 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Chicken",
-            "Turkey",
-            "Sardine",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the chicken.",
-            "Prepare the turkey.",
-            "Mix with sardine.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "20 g",
-            "fiber": "3 g",
-            "fat": "4 g",
-            "calories": "230 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 51,
-          "name": "Tuna & Egg Delight #51",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "19 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Tuna",
-            "Egg",
-            "Liver",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the tuna.",
-            "Prepare the egg.",
-            "Mix with liver.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "21 g",
-            "fiber": "4 g",
-            "fat": "5 g",
-            "calories": "233 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 52,
-          "name": "Salmon & Pumpkin Delight #52",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "20 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Salmon",
-            "Pumpkin",
-            "Rice",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the salmon.",
-            "Prepare the pumpkin.",
-            "Mix with rice.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "22 g",
-            "fiber": "5 g",
-            "fat": "6 g",
-            "calories": "236 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 53,
-          "name": "Turkey & Sardine Delight #53",
-          "ageGroup": "Senior",
-          "mealType": "Lunch",
-          "cookTime": "21 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Turkey",
-            "Sardine",
-            "Duck",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the turkey.",
-            "Prepare the sardine.",
-            "Mix with duck.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "23 g",
-            "fiber": "6 g",
-            "fat": "7 g",
-            "calories": "239 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 54,
-          "name": "Egg & Liver Delight #54",
-          "ageGroup": "Baby",
-          "mealType": "Dinner",
-          "cookTime": "22 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Egg",
-            "Liver",
-            "Chicken",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the egg.",
-            "Prepare the liver.",
-            "Mix with chicken.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "24 g",
-            "fiber": "1 g",
-            "fat": "8 g",
-            "calories": "242 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 55,
-          "name": "Pumpkin & Rice Delight #55",
-          "ageGroup": "Adult",
-          "mealType": "Snack",
-          "cookTime": "23 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Pumpkin",
-            "Rice",
-            "Tuna",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the pumpkin.",
-            "Prepare the rice.",
-            "Mix with tuna.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "25 g",
-            "fiber": "2 g",
-            "fat": "9 g",
-            "calories": "245 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 56,
-          "name": "Sardine & Duck Delight #56",
-          "ageGroup": "Senior",
-          "mealType": "Breakfast",
-          "cookTime": "24 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Sardine",
-            "Duck",
-            "Salmon",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the sardine.",
-            "Prepare the duck.",
-            "Mix with salmon.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "26 g",
-            "fiber": "3 g",
-            "fat": "2 g",
-            "calories": "248 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 57,
-          "name": "Liver & Chicken Delight #57",
-          "ageGroup": "Baby",
-          "mealType": "Lunch",
-          "cookTime": "25 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Liver",
-            "Chicken",
-            "Turkey",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the liver.",
-            "Prepare the chicken.",
-            "Mix with turkey.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "27 g",
-            "fiber": "4 g",
-            "fat": "3 g",
-            "calories": "251 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 58,
-          "name": "Rice & Tuna Delight #58",
-          "ageGroup": "Adult",
-          "mealType": "Dinner",
-          "cookTime": "26 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Rice",
-            "Tuna",
-            "Egg",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the rice.",
-            "Prepare the tuna.",
-            "Mix with egg.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "28 g",
-            "fiber": "5 g",
-            "fat": "4 g",
-            "calories": "254 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 59,
-          "name": "Duck & Salmon Delight #59",
-          "ageGroup": "Senior",
-          "mealType": "Snack",
-          "cookTime": "27 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Duck",
-            "Salmon",
-            "Pumpkin",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the duck.",
-            "Prepare the salmon.",
-            "Mix with pumpkin.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "29 g",
-            "fiber": "6 g",
-            "fat": "5 g",
-            "calories": "257 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 60,
-          "name": "Chicken & Turkey Delight #60",
-          "ageGroup": "Baby",
-          "mealType": "Breakfast",
-          "cookTime": "28 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Chicken",
-            "Turkey",
-            "Sardine",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the chicken.",
-            "Prepare the turkey.",
-            "Mix with sardine.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "10 g",
-            "fiber": "1 g",
-            "fat": "6 g",
-            "calories": "260 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 61,
-          "name": "Tuna & Egg Delight #61",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "29 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Tuna",
-            "Egg",
-            "Liver",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the tuna.",
-            "Prepare the egg.",
-            "Mix with liver.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "11 g",
-            "fiber": "2 g",
-            "fat": "7 g",
-            "calories": "263 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 62,
-          "name": "Salmon & Pumpkin Delight #62",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "30 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Salmon",
-            "Pumpkin",
-            "Rice",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the salmon.",
-            "Prepare the pumpkin.",
-            "Mix with rice.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "12 g",
-            "fiber": "3 g",
-            "fat": "8 g",
-            "calories": "266 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 63,
-          "name": "Turkey & Sardine Delight #63",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "10 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Turkey",
-            "Sardine",
-            "Duck",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the turkey.",
-            "Prepare the sardine.",
-            "Mix with duck.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "13 g",
-            "fiber": "4 g",
-            "fat": "9 g",
-            "calories": "269 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 64,
-          "name": "Egg & Liver Delight #64",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "11 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Egg",
-            "Liver",
-            "Chicken",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the egg.",
-            "Prepare the liver.",
-            "Mix with chicken.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "14 g",
-            "fiber": "5 g",
-            "fat": "2 g",
-            "calories": "272 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 65,
-          "name": "Pumpkin & Rice Delight #65",
-          "ageGroup": "Senior",
-          "mealType": "Lunch",
-          "cookTime": "12 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Pumpkin",
-            "Rice",
-            "Tuna",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the pumpkin.",
-            "Prepare the rice.",
-            "Mix with tuna.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "15 g",
-            "fiber": "6 g",
-            "fat": "3 g",
-            "calories": "275 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 66,
-          "name": "Sardine & Duck Delight #66",
-          "ageGroup": "Baby",
-          "mealType": "Dinner",
-          "cookTime": "13 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Sardine",
-            "Duck",
-            "Salmon",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the sardine.",
-            "Prepare the duck.",
-            "Mix with salmon.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "16 g",
-            "fiber": "1 g",
-            "fat": "4 g",
-            "calories": "278 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 67,
-          "name": "Liver & Chicken Delight #67",
-          "ageGroup": "Adult",
-          "mealType": "Snack",
-          "cookTime": "14 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Liver",
-            "Chicken",
-            "Turkey",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the liver.",
-            "Prepare the chicken.",
-            "Mix with turkey.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "17 g",
-            "fiber": "2 g",
-            "fat": "5 g",
-            "calories": "281 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 68,
-          "name": "Rice & Tuna Delight #68",
-          "ageGroup": "Senior",
-          "mealType": "Breakfast",
-          "cookTime": "15 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Rice",
-            "Tuna",
-            "Egg",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the rice.",
-            "Prepare the tuna.",
-            "Mix with egg.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "18 g",
-            "fiber": "3 g",
-            "fat": "6 g",
-            "calories": "284 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 69,
-          "name": "Duck & Salmon Delight #69",
-          "ageGroup": "Baby",
-          "mealType": "Lunch",
-          "cookTime": "16 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Duck",
-            "Salmon",
-            "Pumpkin",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the duck.",
-            "Prepare the salmon.",
-            "Mix with pumpkin.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "19 g",
-            "fiber": "4 g",
-            "fat": "7 g",
-            "calories": "287 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 70,
-          "name": "Chicken & Turkey Delight #70",
-          "ageGroup": "Adult",
-          "mealType": "Dinner",
-          "cookTime": "17 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Chicken",
-            "Turkey",
-            "Sardine",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the chicken.",
-            "Prepare the turkey.",
-            "Mix with sardine.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "20 g",
-            "fiber": "5 g",
-            "fat": "8 g",
-            "calories": "290 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 71,
-          "name": "Tuna & Egg Delight #71",
-          "ageGroup": "Senior",
-          "mealType": "Snack",
-          "cookTime": "18 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Tuna",
-            "Egg",
-            "Liver",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the tuna.",
-            "Prepare the egg.",
-            "Mix with liver.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "21 g",
-            "fiber": "6 g",
-            "fat": "9 g",
-            "calories": "293 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 72,
-          "name": "Salmon & Pumpkin Delight #72",
-          "ageGroup": "Baby",
-          "mealType": "Breakfast",
-          "cookTime": "19 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Salmon",
-            "Pumpkin",
-            "Rice",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the salmon.",
-            "Prepare the pumpkin.",
-            "Mix with rice.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "22 g",
-            "fiber": "1 g",
-            "fat": "2 g",
-            "calories": "296 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 73,
-          "name": "Turkey & Sardine Delight #73",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "20 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Turkey",
-            "Sardine",
-            "Duck",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the turkey.",
-            "Prepare the sardine.",
-            "Mix with duck.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "23 g",
-            "fiber": "2 g",
-            "fat": "3 g",
-            "calories": "299 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 74,
-          "name": "Egg & Liver Delight #74",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "21 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Egg",
-            "Liver",
-            "Chicken",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the egg.",
-            "Prepare the liver.",
-            "Mix with chicken.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "24 g",
-            "fiber": "3 g",
-            "fat": "4 g",
-            "calories": "302 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 75,
-          "name": "Pumpkin & Rice Delight #75",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "22 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Pumpkin",
-            "Rice",
-            "Tuna",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the pumpkin.",
-            "Prepare the rice.",
-            "Mix with tuna.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "25 g",
-            "fiber": "4 g",
-            "fat": "5 g",
-            "calories": "305 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 76,
-          "name": "Sardine & Duck Delight #76",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "23 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Sardine",
-            "Duck",
-            "Salmon",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the sardine.",
-            "Prepare the duck.",
-            "Mix with salmon.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "26 g",
-            "fiber": "5 g",
-            "fat": "6 g",
-            "calories": "308 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 77,
-          "name": "Liver & Chicken Delight #77",
-          "ageGroup": "Senior",
-          "mealType": "Lunch",
-          "cookTime": "24 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Liver",
-            "Chicken",
-            "Turkey",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the liver.",
-            "Prepare the chicken.",
-            "Mix with turkey.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "27 g",
-            "fiber": "6 g",
-            "fat": "7 g",
-            "calories": "311 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 78,
-          "name": "Rice & Tuna Delight #78",
-          "ageGroup": "Baby",
-          "mealType": "Dinner",
-          "cookTime": "25 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Rice",
-            "Tuna",
-            "Egg",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the rice.",
-            "Prepare the tuna.",
-            "Mix with egg.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "28 g",
-            "fiber": "1 g",
-            "fat": "8 g",
-            "calories": "314 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 79,
-          "name": "Duck & Salmon Delight #79",
-          "ageGroup": "Adult",
-          "mealType": "Snack",
-          "cookTime": "26 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Duck",
-            "Salmon",
-            "Pumpkin",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the duck.",
-            "Prepare the salmon.",
-            "Mix with pumpkin.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "29 g",
-            "fiber": "2 g",
-            "fat": "9 g",
-            "calories": "317 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 80,
-          "name": "Chicken & Turkey Delight #80",
-          "ageGroup": "Senior",
-          "mealType": "Breakfast",
-          "cookTime": "27 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Chicken",
-            "Turkey",
-            "Sardine",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the chicken.",
-            "Prepare the turkey.",
-            "Mix with sardine.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "10 g",
-            "fiber": "3 g",
-            "fat": "2 g",
-            "calories": "320 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 81,
-          "name": "Tuna & Egg Delight #81",
-          "ageGroup": "Baby",
-          "mealType": "Lunch",
-          "cookTime": "28 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Tuna",
-            "Egg",
-            "Liver",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the tuna.",
-            "Prepare the egg.",
-            "Mix with liver.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "11 g",
-            "fiber": "4 g",
-            "fat": "3 g",
-            "calories": "323 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 82,
-          "name": "Salmon & Pumpkin Delight #82",
-          "ageGroup": "Adult",
-          "mealType": "Dinner",
-          "cookTime": "29 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Salmon",
-            "Pumpkin",
-            "Rice",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the salmon.",
-            "Prepare the pumpkin.",
-            "Mix with rice.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "12 g",
-            "fiber": "5 g",
-            "fat": "4 g",
-            "calories": "326 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 83,
-          "name": "Turkey & Sardine Delight #83",
-          "ageGroup": "Senior",
-          "mealType": "Snack",
-          "cookTime": "30 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Turkey",
-            "Sardine",
-            "Duck",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the turkey.",
-            "Prepare the sardine.",
-            "Mix with duck.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "13 g",
-            "fiber": "6 g",
-            "fat": "5 g",
-            "calories": "329 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 84,
-          "name": "Egg & Liver Delight #84",
-          "ageGroup": "Baby",
-          "mealType": "Breakfast",
-          "cookTime": "10 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Egg",
-            "Liver",
-            "Chicken",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the egg.",
-            "Prepare the liver.",
-            "Mix with chicken.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "14 g",
-            "fiber": "1 g",
-            "fat": "6 g",
-            "calories": "332 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 85,
-          "name": "Pumpkin & Rice Delight #85",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "11 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Pumpkin",
-            "Rice",
-            "Tuna",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the pumpkin.",
-            "Prepare the rice.",
-            "Mix with tuna.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "15 g",
-            "fiber": "2 g",
-            "fat": "7 g",
-            "calories": "335 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 86,
-          "name": "Sardine & Duck Delight #86",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "12 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Sardine",
-            "Duck",
-            "Salmon",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the sardine.",
-            "Prepare the duck.",
-            "Mix with salmon.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "16 g",
-            "fiber": "3 g",
-            "fat": "8 g",
-            "calories": "338 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 87,
-          "name": "Liver & Chicken Delight #87",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "13 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Liver",
-            "Chicken",
-            "Turkey",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the liver.",
-            "Prepare the chicken.",
-            "Mix with turkey.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "17 g",
-            "fiber": "4 g",
-            "fat": "9 g",
-            "calories": "341 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 88,
-          "name": "Rice & Tuna Delight #88",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "14 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Rice",
-            "Tuna",
-            "Egg",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the rice.",
-            "Prepare the tuna.",
-            "Mix with egg.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "18 g",
-            "fiber": "5 g",
-            "fat": "2 g",
-            "calories": "344 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 89,
-          "name": "Duck & Salmon Delight #89",
-          "ageGroup": "Senior",
-          "mealType": "Lunch",
-          "cookTime": "15 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Duck",
-            "Salmon",
-            "Pumpkin",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the duck.",
-            "Prepare the salmon.",
-            "Mix with pumpkin.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "19 g",
-            "fiber": "6 g",
-            "fat": "3 g",
-            "calories": "347 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 90,
-          "name": "Chicken & Turkey Delight #90",
-          "ageGroup": "Baby",
-          "mealType": "Dinner",
-          "cookTime": "16 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Chicken",
-            "Turkey",
-            "Sardine",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the chicken.",
-            "Prepare the turkey.",
-            "Mix with sardine.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "20 g",
-            "fiber": "1 g",
-            "fat": "4 g",
-            "calories": "350 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 91,
-          "name": "Tuna & Egg Delight #91",
-          "ageGroup": "Adult",
-          "mealType": "Snack",
-          "cookTime": "17 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Tuna",
-            "Egg",
-            "Liver",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the tuna.",
-            "Prepare the egg.",
-            "Mix with liver.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "21 g",
-            "fiber": "2 g",
-            "fat": "5 g",
-            "calories": "353 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 92,
-          "name": "Salmon & Pumpkin Delight #92",
-          "ageGroup": "Senior",
-          "mealType": "Breakfast",
-          "cookTime": "18 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Salmon",
-            "Pumpkin",
-            "Rice",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the salmon.",
-            "Prepare the pumpkin.",
-            "Mix with rice.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "22 g",
-            "fiber": "3 g",
-            "fat": "6 g",
-            "calories": "356 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 93,
-          "name": "Turkey & Sardine Delight #93",
-          "ageGroup": "Baby",
-          "mealType": "Lunch",
-          "cookTime": "19 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Turkey",
-            "Sardine",
-            "Duck",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the turkey.",
-            "Prepare the sardine.",
-            "Mix with duck.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "23 g",
-            "fiber": "4 g",
-            "fat": "7 g",
-            "calories": "359 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 94,
-          "name": "Egg & Liver Delight #94",
-          "ageGroup": "Adult",
-          "mealType": "Dinner",
-          "cookTime": "20 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Egg",
-            "Liver",
-            "Chicken",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the egg.",
-            "Prepare the liver.",
-            "Mix with chicken.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "24 g",
-            "fiber": "5 g",
-            "fat": "8 g",
-            "calories": "362 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 95,
-          "name": "Pumpkin & Rice Delight #95",
-          "ageGroup": "Senior",
-          "mealType": "Snack",
-          "cookTime": "21 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Pumpkin",
-            "Rice",
-            "Tuna",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the pumpkin.",
-            "Prepare the rice.",
-            "Mix with tuna.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "25 g",
-            "fiber": "6 g",
-            "fat": "9 g",
-            "calories": "365 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 96,
-          "name": "Sardine & Duck Delight #96",
-          "ageGroup": "Baby",
-          "mealType": "Breakfast",
-          "cookTime": "22 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Sardine",
-            "Duck",
-            "Salmon",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the sardine.",
-            "Prepare the duck.",
-            "Mix with salmon.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "26 g",
-            "fiber": "1 g",
-            "fat": "2 g",
-            "calories": "368 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 97,
-          "name": "Liver & Chicken Delight #97",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "23 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Liver",
-            "Chicken",
-            "Turkey",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the liver.",
-            "Prepare the chicken.",
-            "Mix with turkey.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "27 g",
-            "fiber": "2 g",
-            "fat": "3 g",
-            "calories": "371 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 98,
-          "name": "Rice & Tuna Delight #98",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "24 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Rice",
-            "Tuna",
-            "Egg",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the rice.",
-            "Prepare the tuna.",
-            "Mix with egg.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "28 g",
-            "fiber": "3 g",
-            "fat": "4 g",
-            "calories": "374 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 99,
-          "name": "Duck & Salmon Delight #99",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "25 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Duck",
-            "Salmon",
-            "Pumpkin",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the duck.",
-            "Prepare the salmon.",
-            "Mix with pumpkin.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "29 g",
-            "fiber": "4 g",
-            "fat": "5 g",
-            "calories": "377 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 100,
-          "name": "Chicken & Turkey Delight #100",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "26 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Chicken",
-            "Turkey",
-            "Sardine",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the chicken.",
-            "Prepare the turkey.",
-            "Mix with sardine.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "10 g",
-            "fiber": "5 g",
-            "fat": "6 g",
-            "calories": "380 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        }
-      ],
-      "rabbit": [
-        {
-          "id": 1,
-          "name": "Cilantro & Bell Pepper Delight #1",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "11 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Cilantro",
-            "Bell Pepper",
-            "Broccoli Leaf",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the cilantro.",
-            "Prepare the bell pepper.",
-            "Mix with broccoli leaf.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "11 g",
-            "fiber": "2 g",
-            "fat": "3 g",
-            "calories": "83 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 2,
-          "name": "Romaine & Basil Delight #2",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "12 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Romaine",
-            "Basil",
-            "Cucumber",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the romaine.",
-            "Prepare the basil.",
-            "Mix with cucumber.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "12 g",
-            "fiber": "3 g",
-            "fat": "4 g",
-            "calories": "86 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 3,
-          "name": "Parsley & Mint Delight #3",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "13 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Parsley",
-            "Mint",
-            "Zucchini",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the parsley.",
-            "Prepare the mint.",
-            "Mix with zucchini.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "13 g",
-            "fiber": "4 g",
-            "fat": "5 g",
-            "calories": "89 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 4,
-          "name": "Bell Pepper & Broccoli Leaf Delight #4",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "14 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Bell Pepper",
-            "Broccoli Leaf",
-            "Carrot",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the bell pepper.",
-            "Prepare the broccoli leaf.",
-            "Mix with carrot.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "14 g",
-            "fiber": "5 g",
-            "fat": "6 g",
-            "calories": "92 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 5,
-          "name": "Basil & Cucumber Delight #5",
-          "ageGroup": "Senior",
-          "mealType": "Lunch",
-          "cookTime": "15 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Basil",
-            "Cucumber",
-            "Cilantro",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the basil.",
-            "Prepare the cucumber.",
-            "Mix with cilantro.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "15 g",
-            "fiber": "6 g",
-            "fat": "7 g",
-            "calories": "95 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 6,
-          "name": "Mint & Zucchini Delight #6",
-          "ageGroup": "Baby",
-          "mealType": "Dinner",
-          "cookTime": "16 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Mint",
-            "Zucchini",
-            "Romaine",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the mint.",
-            "Prepare the zucchini.",
-            "Mix with romaine.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "16 g",
-            "fiber": "1 g",
-            "fat": "8 g",
-            "calories": "98 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 7,
-          "name": "Broccoli Leaf & Carrot Delight #7",
-          "ageGroup": "Adult",
-          "mealType": "Snack",
-          "cookTime": "17 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Broccoli Leaf",
-            "Carrot",
-            "Parsley",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the broccoli leaf.",
-            "Prepare the carrot.",
-            "Mix with parsley.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "17 g",
-            "fiber": "2 g",
-            "fat": "9 g",
-            "calories": "101 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 8,
-          "name": "Cucumber & Cilantro Delight #8",
-          "ageGroup": "Senior",
-          "mealType": "Breakfast",
-          "cookTime": "18 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Cucumber",
-            "Cilantro",
-            "Bell Pepper",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the cucumber.",
-            "Prepare the cilantro.",
-            "Mix with bell pepper.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "18 g",
-            "fiber": "3 g",
-            "fat": "2 g",
-            "calories": "104 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 9,
-          "name": "Zucchini & Romaine Delight #9",
-          "ageGroup": "Baby",
-          "mealType": "Lunch",
-          "cookTime": "19 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Zucchini",
-            "Romaine",
-            "Basil",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the zucchini.",
-            "Prepare the romaine.",
-            "Mix with basil.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "19 g",
-            "fiber": "4 g",
-            "fat": "3 g",
-            "calories": "107 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 10,
-          "name": "Carrot & Parsley Delight #10",
-          "ageGroup": "Adult",
-          "mealType": "Dinner",
-          "cookTime": "20 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Carrot",
-            "Parsley",
-            "Mint",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the carrot.",
-            "Prepare the parsley.",
-            "Mix with mint.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "20 g",
-            "fiber": "5 g",
-            "fat": "4 g",
-            "calories": "110 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 11,
-          "name": "Cilantro & Bell Pepper Delight #11",
-          "ageGroup": "Senior",
-          "mealType": "Snack",
-          "cookTime": "21 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Cilantro",
-            "Bell Pepper",
-            "Broccoli Leaf",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the cilantro.",
-            "Prepare the bell pepper.",
-            "Mix with broccoli leaf.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "21 g",
-            "fiber": "6 g",
-            "fat": "5 g",
-            "calories": "113 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 12,
-          "name": "Romaine & Basil Delight #12",
-          "ageGroup": "Baby",
-          "mealType": "Breakfast",
-          "cookTime": "22 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Romaine",
-            "Basil",
-            "Cucumber",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the romaine.",
-            "Prepare the basil.",
-            "Mix with cucumber.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "22 g",
-            "fiber": "1 g",
-            "fat": "6 g",
-            "calories": "116 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 13,
-          "name": "Parsley & Mint Delight #13",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "23 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Parsley",
-            "Mint",
-            "Zucchini",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the parsley.",
-            "Prepare the mint.",
-            "Mix with zucchini.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "23 g",
-            "fiber": "2 g",
-            "fat": "7 g",
-            "calories": "119 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 14,
-          "name": "Bell Pepper & Broccoli Leaf Delight #14",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "24 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Bell Pepper",
-            "Broccoli Leaf",
-            "Carrot",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the bell pepper.",
-            "Prepare the broccoli leaf.",
-            "Mix with carrot.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "24 g",
-            "fiber": "3 g",
-            "fat": "8 g",
-            "calories": "122 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 15,
-          "name": "Basil & Cucumber Delight #15",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "25 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Basil",
-            "Cucumber",
-            "Cilantro",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the basil.",
-            "Prepare the cucumber.",
-            "Mix with cilantro.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "25 g",
-            "fiber": "4 g",
-            "fat": "9 g",
-            "calories": "125 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 16,
-          "name": "Mint & Zucchini Delight #16",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "26 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Mint",
-            "Zucchini",
-            "Romaine",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the mint.",
-            "Prepare the zucchini.",
-            "Mix with romaine.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "26 g",
-            "fiber": "5 g",
-            "fat": "2 g",
-            "calories": "128 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 17,
-          "name": "Broccoli Leaf & Carrot Delight #17",
-          "ageGroup": "Senior",
-          "mealType": "Lunch",
-          "cookTime": "27 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Broccoli Leaf",
-            "Carrot",
-            "Parsley",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the broccoli leaf.",
-            "Prepare the carrot.",
-            "Mix with parsley.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "27 g",
-            "fiber": "6 g",
-            "fat": "3 g",
-            "calories": "131 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 18,
-          "name": "Cucumber & Cilantro Delight #18",
-          "ageGroup": "Baby",
-          "mealType": "Dinner",
-          "cookTime": "28 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Cucumber",
-            "Cilantro",
-            "Bell Pepper",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the cucumber.",
-            "Prepare the cilantro.",
-            "Mix with bell pepper.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "28 g",
-            "fiber": "1 g",
-            "fat": "4 g",
-            "calories": "134 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 19,
-          "name": "Zucchini & Romaine Delight #19",
-          "ageGroup": "Adult",
-          "mealType": "Snack",
-          "cookTime": "29 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Zucchini",
-            "Romaine",
-            "Basil",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the zucchini.",
-            "Prepare the romaine.",
-            "Mix with basil.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "29 g",
-            "fiber": "2 g",
-            "fat": "5 g",
-            "calories": "137 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 20,
-          "name": "Carrot & Parsley Delight #20",
-          "ageGroup": "Senior",
-          "mealType": "Breakfast",
-          "cookTime": "30 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Carrot",
-            "Parsley",
-            "Mint",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the carrot.",
-            "Prepare the parsley.",
-            "Mix with mint.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "10 g",
-            "fiber": "3 g",
-            "fat": "6 g",
-            "calories": "140 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 21,
-          "name": "Cilantro & Bell Pepper Delight #21",
-          "ageGroup": "Baby",
-          "mealType": "Lunch",
-          "cookTime": "10 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Cilantro",
-            "Bell Pepper",
-            "Broccoli Leaf",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the cilantro.",
-            "Prepare the bell pepper.",
-            "Mix with broccoli leaf.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "11 g",
-            "fiber": "4 g",
-            "fat": "7 g",
-            "calories": "143 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 22,
-          "name": "Romaine & Basil Delight #22",
-          "ageGroup": "Adult",
-          "mealType": "Dinner",
-          "cookTime": "11 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Romaine",
-            "Basil",
-            "Cucumber",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the romaine.",
-            "Prepare the basil.",
-            "Mix with cucumber.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "12 g",
-            "fiber": "5 g",
-            "fat": "8 g",
-            "calories": "146 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 23,
-          "name": "Parsley & Mint Delight #23",
-          "ageGroup": "Senior",
-          "mealType": "Snack",
-          "cookTime": "12 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Parsley",
-            "Mint",
-            "Zucchini",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the parsley.",
-            "Prepare the mint.",
-            "Mix with zucchini.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "13 g",
-            "fiber": "6 g",
-            "fat": "9 g",
-            "calories": "149 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 24,
-          "name": "Bell Pepper & Broccoli Leaf Delight #24",
-          "ageGroup": "Baby",
-          "mealType": "Breakfast",
-          "cookTime": "13 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Bell Pepper",
-            "Broccoli Leaf",
-            "Carrot",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the bell pepper.",
-            "Prepare the broccoli leaf.",
-            "Mix with carrot.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "14 g",
-            "fiber": "1 g",
-            "fat": "2 g",
-            "calories": "152 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 25,
-          "name": "Basil & Cucumber Delight #25",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "14 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Basil",
-            "Cucumber",
-            "Cilantro",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the basil.",
-            "Prepare the cucumber.",
-            "Mix with cilantro.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "15 g",
-            "fiber": "2 g",
-            "fat": "3 g",
-            "calories": "155 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 26,
-          "name": "Mint & Zucchini Delight #26",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "15 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Mint",
-            "Zucchini",
-            "Romaine",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the mint.",
-            "Prepare the zucchini.",
-            "Mix with romaine.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "16 g",
-            "fiber": "3 g",
-            "fat": "4 g",
-            "calories": "158 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 27,
-          "name": "Broccoli Leaf & Carrot Delight #27",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "16 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Broccoli Leaf",
-            "Carrot",
-            "Parsley",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the broccoli leaf.",
-            "Prepare the carrot.",
-            "Mix with parsley.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "17 g",
-            "fiber": "4 g",
-            "fat": "5 g",
-            "calories": "161 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 28,
-          "name": "Cucumber & Cilantro Delight #28",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "17 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Cucumber",
-            "Cilantro",
-            "Bell Pepper",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the cucumber.",
-            "Prepare the cilantro.",
-            "Mix with bell pepper.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "18 g",
-            "fiber": "5 g",
-            "fat": "6 g",
-            "calories": "164 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 29,
-          "name": "Zucchini & Romaine Delight #29",
-          "ageGroup": "Senior",
-          "mealType": "Lunch",
-          "cookTime": "18 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Zucchini",
-            "Romaine",
-            "Basil",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the zucchini.",
-            "Prepare the romaine.",
-            "Mix with basil.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "19 g",
-            "fiber": "6 g",
-            "fat": "7 g",
-            "calories": "167 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 30,
-          "name": "Carrot & Parsley Delight #30",
-          "ageGroup": "Baby",
-          "mealType": "Dinner",
-          "cookTime": "19 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Carrot",
-            "Parsley",
-            "Mint",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the carrot.",
-            "Prepare the parsley.",
-            "Mix with mint.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "20 g",
-            "fiber": "1 g",
-            "fat": "8 g",
-            "calories": "170 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 31,
-          "name": "Cilantro & Bell Pepper Delight #31",
-          "ageGroup": "Adult",
-          "mealType": "Snack",
-          "cookTime": "20 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Cilantro",
-            "Bell Pepper",
-            "Broccoli Leaf",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the cilantro.",
-            "Prepare the bell pepper.",
-            "Mix with broccoli leaf.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "21 g",
-            "fiber": "2 g",
-            "fat": "9 g",
-            "calories": "173 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 32,
-          "name": "Romaine & Basil Delight #32",
-          "ageGroup": "Senior",
-          "mealType": "Breakfast",
-          "cookTime": "21 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Romaine",
-            "Basil",
-            "Cucumber",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the romaine.",
-            "Prepare the basil.",
-            "Mix with cucumber.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "22 g",
-            "fiber": "3 g",
-            "fat": "2 g",
-            "calories": "176 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 33,
-          "name": "Parsley & Mint Delight #33",
-          "ageGroup": "Baby",
-          "mealType": "Lunch",
-          "cookTime": "22 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Parsley",
-            "Mint",
-            "Zucchini",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the parsley.",
-            "Prepare the mint.",
-            "Mix with zucchini.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "23 g",
-            "fiber": "4 g",
-            "fat": "3 g",
-            "calories": "179 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 34,
-          "name": "Bell Pepper & Broccoli Leaf Delight #34",
-          "ageGroup": "Adult",
-          "mealType": "Dinner",
-          "cookTime": "23 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Bell Pepper",
-            "Broccoli Leaf",
-            "Carrot",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the bell pepper.",
-            "Prepare the broccoli leaf.",
-            "Mix with carrot.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "24 g",
-            "fiber": "5 g",
-            "fat": "4 g",
-            "calories": "182 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 35,
-          "name": "Basil & Cucumber Delight #35",
-          "ageGroup": "Senior",
-          "mealType": "Snack",
-          "cookTime": "24 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Basil",
-            "Cucumber",
-            "Cilantro",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the basil.",
-            "Prepare the cucumber.",
-            "Mix with cilantro.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "25 g",
-            "fiber": "6 g",
-            "fat": "5 g",
-            "calories": "185 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 36,
-          "name": "Mint & Zucchini Delight #36",
-          "ageGroup": "Baby",
-          "mealType": "Breakfast",
-          "cookTime": "25 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Mint",
-            "Zucchini",
-            "Romaine",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the mint.",
-            "Prepare the zucchini.",
-            "Mix with romaine.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "26 g",
-            "fiber": "1 g",
-            "fat": "6 g",
-            "calories": "188 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 37,
-          "name": "Broccoli Leaf & Carrot Delight #37",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "26 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Broccoli Leaf",
-            "Carrot",
-            "Parsley",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the broccoli leaf.",
-            "Prepare the carrot.",
-            "Mix with parsley.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "27 g",
-            "fiber": "2 g",
-            "fat": "7 g",
-            "calories": "191 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 38,
-          "name": "Cucumber & Cilantro Delight #38",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "27 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Cucumber",
-            "Cilantro",
-            "Bell Pepper",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the cucumber.",
-            "Prepare the cilantro.",
-            "Mix with bell pepper.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "28 g",
-            "fiber": "3 g",
-            "fat": "8 g",
-            "calories": "194 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 39,
-          "name": "Zucchini & Romaine Delight #39",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "28 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Zucchini",
-            "Romaine",
-            "Basil",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the zucchini.",
-            "Prepare the romaine.",
-            "Mix with basil.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "29 g",
-            "fiber": "4 g",
-            "fat": "9 g",
-            "calories": "197 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 40,
-          "name": "Carrot & Parsley Delight #40",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "29 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Carrot",
-            "Parsley",
-            "Mint",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the carrot.",
-            "Prepare the parsley.",
-            "Mix with mint.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "10 g",
-            "fiber": "5 g",
-            "fat": "2 g",
-            "calories": "200 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 41,
-          "name": "Cilantro & Bell Pepper Delight #41",
-          "ageGroup": "Senior",
-          "mealType": "Lunch",
-          "cookTime": "30 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Cilantro",
-            "Bell Pepper",
-            "Broccoli Leaf",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the cilantro.",
-            "Prepare the bell pepper.",
-            "Mix with broccoli leaf.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "11 g",
-            "fiber": "6 g",
-            "fat": "3 g",
-            "calories": "203 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 42,
-          "name": "Romaine & Basil Delight #42",
-          "ageGroup": "Baby",
-          "mealType": "Dinner",
-          "cookTime": "10 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Romaine",
-            "Basil",
-            "Cucumber",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the romaine.",
-            "Prepare the basil.",
-            "Mix with cucumber.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "12 g",
-            "fiber": "1 g",
-            "fat": "4 g",
-            "calories": "206 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 43,
-          "name": "Parsley & Mint Delight #43",
-          "ageGroup": "Adult",
-          "mealType": "Snack",
-          "cookTime": "11 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Parsley",
-            "Mint",
-            "Zucchini",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the parsley.",
-            "Prepare the mint.",
-            "Mix with zucchini.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "13 g",
-            "fiber": "2 g",
-            "fat": "5 g",
-            "calories": "209 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 44,
-          "name": "Bell Pepper & Broccoli Leaf Delight #44",
-          "ageGroup": "Senior",
-          "mealType": "Breakfast",
-          "cookTime": "12 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Bell Pepper",
-            "Broccoli Leaf",
-            "Carrot",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the bell pepper.",
-            "Prepare the broccoli leaf.",
-            "Mix with carrot.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "14 g",
-            "fiber": "3 g",
-            "fat": "6 g",
-            "calories": "212 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 45,
-          "name": "Basil & Cucumber Delight #45",
-          "ageGroup": "Baby",
-          "mealType": "Lunch",
-          "cookTime": "13 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Basil",
-            "Cucumber",
-            "Cilantro",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the basil.",
-            "Prepare the cucumber.",
-            "Mix with cilantro.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "15 g",
-            "fiber": "4 g",
-            "fat": "7 g",
-            "calories": "215 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 46,
-          "name": "Mint & Zucchini Delight #46",
-          "ageGroup": "Adult",
-          "mealType": "Dinner",
-          "cookTime": "14 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Mint",
-            "Zucchini",
-            "Romaine",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the mint.",
-            "Prepare the zucchini.",
-            "Mix with romaine.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "16 g",
-            "fiber": "5 g",
-            "fat": "8 g",
-            "calories": "218 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 47,
-          "name": "Broccoli Leaf & Carrot Delight #47",
-          "ageGroup": "Senior",
-          "mealType": "Snack",
-          "cookTime": "15 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Broccoli Leaf",
-            "Carrot",
-            "Parsley",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the broccoli leaf.",
-            "Prepare the carrot.",
-            "Mix with parsley.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "17 g",
-            "fiber": "6 g",
-            "fat": "9 g",
-            "calories": "221 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 48,
-          "name": "Cucumber & Cilantro Delight #48",
-          "ageGroup": "Baby",
-          "mealType": "Breakfast",
-          "cookTime": "16 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Cucumber",
-            "Cilantro",
-            "Bell Pepper",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the cucumber.",
-            "Prepare the cilantro.",
-            "Mix with bell pepper.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "18 g",
-            "fiber": "1 g",
-            "fat": "2 g",
-            "calories": "224 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 49,
-          "name": "Zucchini & Romaine Delight #49",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "17 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Zucchini",
-            "Romaine",
-            "Basil",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the zucchini.",
-            "Prepare the romaine.",
-            "Mix with basil.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "19 g",
-            "fiber": "2 g",
-            "fat": "3 g",
-            "calories": "227 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 50,
-          "name": "Carrot & Parsley Delight #50",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "18 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Carrot",
-            "Parsley",
-            "Mint",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the carrot.",
-            "Prepare the parsley.",
-            "Mix with mint.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "20 g",
-            "fiber": "3 g",
-            "fat": "4 g",
-            "calories": "230 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 51,
-          "name": "Cilantro & Bell Pepper Delight #51",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "19 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Cilantro",
-            "Bell Pepper",
-            "Broccoli Leaf",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the cilantro.",
-            "Prepare the bell pepper.",
-            "Mix with broccoli leaf.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "21 g",
-            "fiber": "4 g",
-            "fat": "5 g",
-            "calories": "233 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 52,
-          "name": "Romaine & Basil Delight #52",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "20 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Romaine",
-            "Basil",
-            "Cucumber",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the romaine.",
-            "Prepare the basil.",
-            "Mix with cucumber.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "22 g",
-            "fiber": "5 g",
-            "fat": "6 g",
-            "calories": "236 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 53,
-          "name": "Parsley & Mint Delight #53",
-          "ageGroup": "Senior",
-          "mealType": "Lunch",
-          "cookTime": "21 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Parsley",
-            "Mint",
-            "Zucchini",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the parsley.",
-            "Prepare the mint.",
-            "Mix with zucchini.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "23 g",
-            "fiber": "6 g",
-            "fat": "7 g",
-            "calories": "239 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 54,
-          "name": "Bell Pepper & Broccoli Leaf Delight #54",
-          "ageGroup": "Baby",
-          "mealType": "Dinner",
-          "cookTime": "22 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Bell Pepper",
-            "Broccoli Leaf",
-            "Carrot",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the bell pepper.",
-            "Prepare the broccoli leaf.",
-            "Mix with carrot.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "24 g",
-            "fiber": "1 g",
-            "fat": "8 g",
-            "calories": "242 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 55,
-          "name": "Basil & Cucumber Delight #55",
-          "ageGroup": "Adult",
-          "mealType": "Snack",
-          "cookTime": "23 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Basil",
-            "Cucumber",
-            "Cilantro",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the basil.",
-            "Prepare the cucumber.",
-            "Mix with cilantro.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "25 g",
-            "fiber": "2 g",
-            "fat": "9 g",
-            "calories": "245 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 56,
-          "name": "Mint & Zucchini Delight #56",
-          "ageGroup": "Senior",
-          "mealType": "Breakfast",
-          "cookTime": "24 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Mint",
-            "Zucchini",
-            "Romaine",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the mint.",
-            "Prepare the zucchini.",
-            "Mix with romaine.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "26 g",
-            "fiber": "3 g",
-            "fat": "2 g",
-            "calories": "248 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 57,
-          "name": "Broccoli Leaf & Carrot Delight #57",
-          "ageGroup": "Baby",
-          "mealType": "Lunch",
-          "cookTime": "25 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Broccoli Leaf",
-            "Carrot",
-            "Parsley",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the broccoli leaf.",
-            "Prepare the carrot.",
-            "Mix with parsley.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "27 g",
-            "fiber": "4 g",
-            "fat": "3 g",
-            "calories": "251 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 58,
-          "name": "Cucumber & Cilantro Delight #58",
-          "ageGroup": "Adult",
-          "mealType": "Dinner",
-          "cookTime": "26 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Cucumber",
-            "Cilantro",
-            "Bell Pepper",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the cucumber.",
-            "Prepare the cilantro.",
-            "Mix with bell pepper.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "28 g",
-            "fiber": "5 g",
-            "fat": "4 g",
-            "calories": "254 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 59,
-          "name": "Zucchini & Romaine Delight #59",
-          "ageGroup": "Senior",
-          "mealType": "Snack",
-          "cookTime": "27 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Zucchini",
-            "Romaine",
-            "Basil",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the zucchini.",
-            "Prepare the romaine.",
-            "Mix with basil.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "29 g",
-            "fiber": "6 g",
-            "fat": "5 g",
-            "calories": "257 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 60,
-          "name": "Carrot & Parsley Delight #60",
-          "ageGroup": "Baby",
-          "mealType": "Breakfast",
-          "cookTime": "28 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Carrot",
-            "Parsley",
-            "Mint",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the carrot.",
-            "Prepare the parsley.",
-            "Mix with mint.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "10 g",
-            "fiber": "1 g",
-            "fat": "6 g",
-            "calories": "260 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 61,
-          "name": "Cilantro & Bell Pepper Delight #61",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "29 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Cilantro",
-            "Bell Pepper",
-            "Broccoli Leaf",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the cilantro.",
-            "Prepare the bell pepper.",
-            "Mix with broccoli leaf.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "11 g",
-            "fiber": "2 g",
-            "fat": "7 g",
-            "calories": "263 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 62,
-          "name": "Romaine & Basil Delight #62",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "30 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Romaine",
-            "Basil",
-            "Cucumber",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the romaine.",
-            "Prepare the basil.",
-            "Mix with cucumber.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "12 g",
-            "fiber": "3 g",
-            "fat": "8 g",
-            "calories": "266 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 63,
-          "name": "Parsley & Mint Delight #63",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "10 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Parsley",
-            "Mint",
-            "Zucchini",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the parsley.",
-            "Prepare the mint.",
-            "Mix with zucchini.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "13 g",
-            "fiber": "4 g",
-            "fat": "9 g",
-            "calories": "269 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 64,
-          "name": "Bell Pepper & Broccoli Leaf Delight #64",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "11 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Bell Pepper",
-            "Broccoli Leaf",
-            "Carrot",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the bell pepper.",
-            "Prepare the broccoli leaf.",
-            "Mix with carrot.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "14 g",
-            "fiber": "5 g",
-            "fat": "2 g",
-            "calories": "272 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 65,
-          "name": "Basil & Cucumber Delight #65",
-          "ageGroup": "Senior",
-          "mealType": "Lunch",
-          "cookTime": "12 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Basil",
-            "Cucumber",
-            "Cilantro",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the basil.",
-            "Prepare the cucumber.",
-            "Mix with cilantro.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "15 g",
-            "fiber": "6 g",
-            "fat": "3 g",
-            "calories": "275 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 66,
-          "name": "Mint & Zucchini Delight #66",
-          "ageGroup": "Baby",
-          "mealType": "Dinner",
-          "cookTime": "13 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Mint",
-            "Zucchini",
-            "Romaine",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the mint.",
-            "Prepare the zucchini.",
-            "Mix with romaine.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "16 g",
-            "fiber": "1 g",
-            "fat": "4 g",
-            "calories": "278 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 67,
-          "name": "Broccoli Leaf & Carrot Delight #67",
-          "ageGroup": "Adult",
-          "mealType": "Snack",
-          "cookTime": "14 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Broccoli Leaf",
-            "Carrot",
-            "Parsley",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the broccoli leaf.",
-            "Prepare the carrot.",
-            "Mix with parsley.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "17 g",
-            "fiber": "2 g",
-            "fat": "5 g",
-            "calories": "281 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 68,
-          "name": "Cucumber & Cilantro Delight #68",
-          "ageGroup": "Senior",
-          "mealType": "Breakfast",
-          "cookTime": "15 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Cucumber",
-            "Cilantro",
-            "Bell Pepper",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the cucumber.",
-            "Prepare the cilantro.",
-            "Mix with bell pepper.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "18 g",
-            "fiber": "3 g",
-            "fat": "6 g",
-            "calories": "284 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 69,
-          "name": "Zucchini & Romaine Delight #69",
-          "ageGroup": "Baby",
-          "mealType": "Lunch",
-          "cookTime": "16 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Zucchini",
-            "Romaine",
-            "Basil",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the zucchini.",
-            "Prepare the romaine.",
-            "Mix with basil.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "19 g",
-            "fiber": "4 g",
-            "fat": "7 g",
-            "calories": "287 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 70,
-          "name": "Carrot & Parsley Delight #70",
-          "ageGroup": "Adult",
-          "mealType": "Dinner",
-          "cookTime": "17 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Carrot",
-            "Parsley",
-            "Mint",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the carrot.",
-            "Prepare the parsley.",
-            "Mix with mint.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "20 g",
-            "fiber": "5 g",
-            "fat": "8 g",
-            "calories": "290 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 71,
-          "name": "Cilantro & Bell Pepper Delight #71",
-          "ageGroup": "Senior",
-          "mealType": "Snack",
-          "cookTime": "18 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Cilantro",
-            "Bell Pepper",
-            "Broccoli Leaf",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the cilantro.",
-            "Prepare the bell pepper.",
-            "Mix with broccoli leaf.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "21 g",
-            "fiber": "6 g",
-            "fat": "9 g",
-            "calories": "293 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 72,
-          "name": "Romaine & Basil Delight #72",
-          "ageGroup": "Baby",
-          "mealType": "Breakfast",
-          "cookTime": "19 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Romaine",
-            "Basil",
-            "Cucumber",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the romaine.",
-            "Prepare the basil.",
-            "Mix with cucumber.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "22 g",
-            "fiber": "1 g",
-            "fat": "2 g",
-            "calories": "296 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 73,
-          "name": "Parsley & Mint Delight #73",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "20 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Parsley",
-            "Mint",
-            "Zucchini",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the parsley.",
-            "Prepare the mint.",
-            "Mix with zucchini.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "23 g",
-            "fiber": "2 g",
-            "fat": "3 g",
-            "calories": "299 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 74,
-          "name": "Bell Pepper & Broccoli Leaf Delight #74",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "21 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Bell Pepper",
-            "Broccoli Leaf",
-            "Carrot",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the bell pepper.",
-            "Prepare the broccoli leaf.",
-            "Mix with carrot.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "24 g",
-            "fiber": "3 g",
-            "fat": "4 g",
-            "calories": "302 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 75,
-          "name": "Basil & Cucumber Delight #75",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "22 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Basil",
-            "Cucumber",
-            "Cilantro",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the basil.",
-            "Prepare the cucumber.",
-            "Mix with cilantro.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "25 g",
-            "fiber": "4 g",
-            "fat": "5 g",
-            "calories": "305 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 76,
-          "name": "Mint & Zucchini Delight #76",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "23 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Mint",
-            "Zucchini",
-            "Romaine",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the mint.",
-            "Prepare the zucchini.",
-            "Mix with romaine.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "26 g",
-            "fiber": "5 g",
-            "fat": "6 g",
-            "calories": "308 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 77,
-          "name": "Broccoli Leaf & Carrot Delight #77",
-          "ageGroup": "Senior",
-          "mealType": "Lunch",
-          "cookTime": "24 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Broccoli Leaf",
-            "Carrot",
-            "Parsley",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the broccoli leaf.",
-            "Prepare the carrot.",
-            "Mix with parsley.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "27 g",
-            "fiber": "6 g",
-            "fat": "7 g",
-            "calories": "311 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 78,
-          "name": "Cucumber & Cilantro Delight #78",
-          "ageGroup": "Baby",
-          "mealType": "Dinner",
-          "cookTime": "25 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Cucumber",
-            "Cilantro",
-            "Bell Pepper",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the cucumber.",
-            "Prepare the cilantro.",
-            "Mix with bell pepper.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "28 g",
-            "fiber": "1 g",
-            "fat": "8 g",
-            "calories": "314 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 79,
-          "name": "Zucchini & Romaine Delight #79",
-          "ageGroup": "Adult",
-          "mealType": "Snack",
-          "cookTime": "26 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Zucchini",
-            "Romaine",
-            "Basil",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the zucchini.",
-            "Prepare the romaine.",
-            "Mix with basil.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "29 g",
-            "fiber": "2 g",
-            "fat": "9 g",
-            "calories": "317 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 80,
-          "name": "Carrot & Parsley Delight #80",
-          "ageGroup": "Senior",
-          "mealType": "Breakfast",
-          "cookTime": "27 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Carrot",
-            "Parsley",
-            "Mint",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the carrot.",
-            "Prepare the parsley.",
-            "Mix with mint.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "10 g",
-            "fiber": "3 g",
-            "fat": "2 g",
-            "calories": "320 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 81,
-          "name": "Cilantro & Bell Pepper Delight #81",
-          "ageGroup": "Baby",
-          "mealType": "Lunch",
-          "cookTime": "28 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Cilantro",
-            "Bell Pepper",
-            "Broccoli Leaf",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the cilantro.",
-            "Prepare the bell pepper.",
-            "Mix with broccoli leaf.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "11 g",
-            "fiber": "4 g",
-            "fat": "3 g",
-            "calories": "323 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 82,
-          "name": "Romaine & Basil Delight #82",
-          "ageGroup": "Adult",
-          "mealType": "Dinner",
-          "cookTime": "29 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Romaine",
-            "Basil",
-            "Cucumber",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the romaine.",
-            "Prepare the basil.",
-            "Mix with cucumber.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "12 g",
-            "fiber": "5 g",
-            "fat": "4 g",
-            "calories": "326 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 83,
-          "name": "Parsley & Mint Delight #83",
-          "ageGroup": "Senior",
-          "mealType": "Snack",
-          "cookTime": "30 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Parsley",
-            "Mint",
-            "Zucchini",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the parsley.",
-            "Prepare the mint.",
-            "Mix with zucchini.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "13 g",
-            "fiber": "6 g",
-            "fat": "5 g",
-            "calories": "329 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 84,
-          "name": "Bell Pepper & Broccoli Leaf Delight #84",
-          "ageGroup": "Baby",
-          "mealType": "Breakfast",
-          "cookTime": "10 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Bell Pepper",
-            "Broccoli Leaf",
-            "Carrot",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the bell pepper.",
-            "Prepare the broccoli leaf.",
-            "Mix with carrot.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "14 g",
-            "fiber": "1 g",
-            "fat": "6 g",
-            "calories": "332 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 85,
-          "name": "Basil & Cucumber Delight #85",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "11 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Basil",
-            "Cucumber",
-            "Cilantro",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the basil.",
-            "Prepare the cucumber.",
-            "Mix with cilantro.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "15 g",
-            "fiber": "2 g",
-            "fat": "7 g",
-            "calories": "335 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 86,
-          "name": "Mint & Zucchini Delight #86",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "12 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Mint",
-            "Zucchini",
-            "Romaine",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the mint.",
-            "Prepare the zucchini.",
-            "Mix with romaine.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "16 g",
-            "fiber": "3 g",
-            "fat": "8 g",
-            "calories": "338 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 87,
-          "name": "Broccoli Leaf & Carrot Delight #87",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "13 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Broccoli Leaf",
-            "Carrot",
-            "Parsley",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the broccoli leaf.",
-            "Prepare the carrot.",
-            "Mix with parsley.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "17 g",
-            "fiber": "4 g",
-            "fat": "9 g",
-            "calories": "341 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 88,
-          "name": "Cucumber & Cilantro Delight #88",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "14 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Cucumber",
-            "Cilantro",
-            "Bell Pepper",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the cucumber.",
-            "Prepare the cilantro.",
-            "Mix with bell pepper.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "18 g",
-            "fiber": "5 g",
-            "fat": "2 g",
-            "calories": "344 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 89,
-          "name": "Zucchini & Romaine Delight #89",
-          "ageGroup": "Senior",
-          "mealType": "Lunch",
-          "cookTime": "15 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Zucchini",
-            "Romaine",
-            "Basil",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the zucchini.",
-            "Prepare the romaine.",
-            "Mix with basil.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "19 g",
-            "fiber": "6 g",
-            "fat": "3 g",
-            "calories": "347 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 90,
-          "name": "Carrot & Parsley Delight #90",
-          "ageGroup": "Baby",
-          "mealType": "Dinner",
-          "cookTime": "16 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Carrot",
-            "Parsley",
-            "Mint",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the carrot.",
-            "Prepare the parsley.",
-            "Mix with mint.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "20 g",
-            "fiber": "1 g",
-            "fat": "4 g",
-            "calories": "350 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 91,
-          "name": "Cilantro & Bell Pepper Delight #91",
-          "ageGroup": "Adult",
-          "mealType": "Snack",
-          "cookTime": "17 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Cilantro",
-            "Bell Pepper",
-            "Broccoli Leaf",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the cilantro.",
-            "Prepare the bell pepper.",
-            "Mix with broccoli leaf.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "21 g",
-            "fiber": "2 g",
-            "fat": "5 g",
-            "calories": "353 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 92,
-          "name": "Romaine & Basil Delight #92",
-          "ageGroup": "Senior",
-          "mealType": "Breakfast",
-          "cookTime": "18 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Romaine",
-            "Basil",
-            "Cucumber",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the romaine.",
-            "Prepare the basil.",
-            "Mix with cucumber.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "22 g",
-            "fiber": "3 g",
-            "fat": "6 g",
-            "calories": "356 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 93,
-          "name": "Parsley & Mint Delight #93",
-          "ageGroup": "Baby",
-          "mealType": "Lunch",
-          "cookTime": "19 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Parsley",
-            "Mint",
-            "Zucchini",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the parsley.",
-            "Prepare the mint.",
-            "Mix with zucchini.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "23 g",
-            "fiber": "4 g",
-            "fat": "7 g",
-            "calories": "359 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 94,
-          "name": "Bell Pepper & Broccoli Leaf Delight #94",
-          "ageGroup": "Adult",
-          "mealType": "Dinner",
-          "cookTime": "20 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Bell Pepper",
-            "Broccoli Leaf",
-            "Carrot",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the bell pepper.",
-            "Prepare the broccoli leaf.",
-            "Mix with carrot.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "24 g",
-            "fiber": "5 g",
-            "fat": "8 g",
-            "calories": "362 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 95,
-          "name": "Basil & Cucumber Delight #95",
-          "ageGroup": "Senior",
-          "mealType": "Snack",
-          "cookTime": "21 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Basil",
-            "Cucumber",
-            "Cilantro",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the basil.",
-            "Prepare the cucumber.",
-            "Mix with cilantro.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "25 g",
-            "fiber": "6 g",
-            "fat": "9 g",
-            "calories": "365 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 96,
-          "name": "Mint & Zucchini Delight #96",
-          "ageGroup": "Baby",
-          "mealType": "Breakfast",
-          "cookTime": "22 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Mint",
-            "Zucchini",
-            "Romaine",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the mint.",
-            "Prepare the zucchini.",
-            "Mix with romaine.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "26 g",
-            "fiber": "1 g",
-            "fat": "2 g",
-            "calories": "368 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 97,
-          "name": "Broccoli Leaf & Carrot Delight #97",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "23 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Broccoli Leaf",
-            "Carrot",
-            "Parsley",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the broccoli leaf.",
-            "Prepare the carrot.",
-            "Mix with parsley.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "27 g",
-            "fiber": "2 g",
-            "fat": "3 g",
-            "calories": "371 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 98,
-          "name": "Cucumber & Cilantro Delight #98",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "24 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Cucumber",
-            "Cilantro",
-            "Bell Pepper",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the cucumber.",
-            "Prepare the cilantro.",
-            "Mix with bell pepper.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "28 g",
-            "fiber": "3 g",
-            "fat": "4 g",
-            "calories": "374 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 99,
-          "name": "Zucchini & Romaine Delight #99",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "25 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Zucchini",
-            "Romaine",
-            "Basil",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the zucchini.",
-            "Prepare the romaine.",
-            "Mix with basil.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "29 g",
-            "fiber": "4 g",
-            "fat": "5 g",
-            "calories": "377 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 100,
-          "name": "Carrot & Parsley Delight #100",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "26 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Carrot",
-            "Parsley",
-            "Mint",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the carrot.",
-            "Prepare the parsley.",
-            "Mix with mint.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "10 g",
-            "fiber": "5 g",
-            "fat": "6 g",
-            "calories": "380 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        }
-      ],
-      "parrot": [
-        {
-          "id": 1,
-          "name": "Banana & Peas Delight #1",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "11 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Banana",
-            "Peas",
-            "Guava",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the banana.",
-            "Prepare the peas.",
-            "Mix with guava.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "11 g",
-            "fiber": "2 g",
-            "fat": "3 g",
-            "calories": "83 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 2,
-          "name": "Papaya & Carrot Delight #2",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "12 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Papaya",
-            "Carrot",
-            "Spinach",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the papaya.",
-            "Prepare the carrot.",
-            "Mix with spinach.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "12 g",
-            "fiber": "3 g",
-            "fat": "4 g",
-            "calories": "86 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 3,
-          "name": "Corn & Mango Delight #3",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "13 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Corn",
-            "Mango",
-            "Pumpkin",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the corn.",
-            "Prepare the mango.",
-            "Mix with pumpkin.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "13 g",
-            "fiber": "4 g",
-            "fat": "5 g",
-            "calories": "89 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 4,
-          "name": "Peas & Guava Delight #4",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "14 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Peas",
-            "Guava",
-            "Apple",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the peas.",
-            "Prepare the guava.",
-            "Mix with apple.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "14 g",
-            "fiber": "5 g",
-            "fat": "6 g",
-            "calories": "92 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 5,
-          "name": "Carrot & Spinach Delight #5",
-          "ageGroup": "Senior",
-          "mealType": "Lunch",
-          "cookTime": "15 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Carrot",
-            "Spinach",
-            "Banana",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the carrot.",
-            "Prepare the spinach.",
-            "Mix with banana.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "15 g",
-            "fiber": "6 g",
-            "fat": "7 g",
-            "calories": "95 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 6,
-          "name": "Mango & Pumpkin Delight #6",
-          "ageGroup": "Baby",
-          "mealType": "Dinner",
-          "cookTime": "16 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Mango",
-            "Pumpkin",
-            "Papaya",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the mango.",
-            "Prepare the pumpkin.",
-            "Mix with papaya.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "16 g",
-            "fiber": "1 g",
-            "fat": "8 g",
-            "calories": "98 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 7,
-          "name": "Guava & Apple Delight #7",
-          "ageGroup": "Adult",
-          "mealType": "Snack",
-          "cookTime": "17 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Guava",
-            "Apple",
-            "Corn",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the guava.",
-            "Prepare the apple.",
-            "Mix with corn.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "17 g",
-            "fiber": "2 g",
-            "fat": "9 g",
-            "calories": "101 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 8,
-          "name": "Spinach & Banana Delight #8",
-          "ageGroup": "Senior",
-          "mealType": "Breakfast",
-          "cookTime": "18 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Spinach",
-            "Banana",
-            "Peas",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the spinach.",
-            "Prepare the banana.",
-            "Mix with peas.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "18 g",
-            "fiber": "3 g",
-            "fat": "2 g",
-            "calories": "104 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 9,
-          "name": "Pumpkin & Papaya Delight #9",
-          "ageGroup": "Baby",
-          "mealType": "Lunch",
-          "cookTime": "19 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Pumpkin",
-            "Papaya",
-            "Carrot",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the pumpkin.",
-            "Prepare the papaya.",
-            "Mix with carrot.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "19 g",
-            "fiber": "4 g",
-            "fat": "3 g",
-            "calories": "107 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 10,
-          "name": "Apple & Corn Delight #10",
-          "ageGroup": "Adult",
-          "mealType": "Dinner",
-          "cookTime": "20 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Apple",
-            "Corn",
-            "Mango",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the apple.",
-            "Prepare the corn.",
-            "Mix with mango.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "20 g",
-            "fiber": "5 g",
-            "fat": "4 g",
-            "calories": "110 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 11,
-          "name": "Banana & Peas Delight #11",
-          "ageGroup": "Senior",
-          "mealType": "Snack",
-          "cookTime": "21 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Banana",
-            "Peas",
-            "Guava",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the banana.",
-            "Prepare the peas.",
-            "Mix with guava.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "21 g",
-            "fiber": "6 g",
-            "fat": "5 g",
-            "calories": "113 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 12,
-          "name": "Papaya & Carrot Delight #12",
-          "ageGroup": "Baby",
-          "mealType": "Breakfast",
-          "cookTime": "22 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Papaya",
-            "Carrot",
-            "Spinach",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the papaya.",
-            "Prepare the carrot.",
-            "Mix with spinach.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "22 g",
-            "fiber": "1 g",
-            "fat": "6 g",
-            "calories": "116 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 13,
-          "name": "Corn & Mango Delight #13",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "23 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Corn",
-            "Mango",
-            "Pumpkin",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the corn.",
-            "Prepare the mango.",
-            "Mix with pumpkin.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "23 g",
-            "fiber": "2 g",
-            "fat": "7 g",
-            "calories": "119 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 14,
-          "name": "Peas & Guava Delight #14",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "24 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Peas",
-            "Guava",
-            "Apple",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the peas.",
-            "Prepare the guava.",
-            "Mix with apple.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "24 g",
-            "fiber": "3 g",
-            "fat": "8 g",
-            "calories": "122 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 15,
-          "name": "Carrot & Spinach Delight #15",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "25 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Carrot",
-            "Spinach",
-            "Banana",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the carrot.",
-            "Prepare the spinach.",
-            "Mix with banana.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "25 g",
-            "fiber": "4 g",
-            "fat": "9 g",
-            "calories": "125 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 16,
-          "name": "Mango & Pumpkin Delight #16",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "26 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Mango",
-            "Pumpkin",
-            "Papaya",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the mango.",
-            "Prepare the pumpkin.",
-            "Mix with papaya.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "26 g",
-            "fiber": "5 g",
-            "fat": "2 g",
-            "calories": "128 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 17,
-          "name": "Guava & Apple Delight #17",
-          "ageGroup": "Senior",
-          "mealType": "Lunch",
-          "cookTime": "27 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Guava",
-            "Apple",
-            "Corn",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the guava.",
-            "Prepare the apple.",
-            "Mix with corn.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "27 g",
-            "fiber": "6 g",
-            "fat": "3 g",
-            "calories": "131 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 18,
-          "name": "Spinach & Banana Delight #18",
-          "ageGroup": "Baby",
-          "mealType": "Dinner",
-          "cookTime": "28 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Spinach",
-            "Banana",
-            "Peas",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the spinach.",
-            "Prepare the banana.",
-            "Mix with peas.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "28 g",
-            "fiber": "1 g",
-            "fat": "4 g",
-            "calories": "134 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 19,
-          "name": "Pumpkin & Papaya Delight #19",
-          "ageGroup": "Adult",
-          "mealType": "Snack",
-          "cookTime": "29 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Pumpkin",
-            "Papaya",
-            "Carrot",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the pumpkin.",
-            "Prepare the papaya.",
-            "Mix with carrot.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "29 g",
-            "fiber": "2 g",
-            "fat": "5 g",
-            "calories": "137 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 20,
-          "name": "Apple & Corn Delight #20",
-          "ageGroup": "Senior",
-          "mealType": "Breakfast",
-          "cookTime": "30 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Apple",
-            "Corn",
-            "Mango",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the apple.",
-            "Prepare the corn.",
-            "Mix with mango.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "10 g",
-            "fiber": "3 g",
-            "fat": "6 g",
-            "calories": "140 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 21,
-          "name": "Banana & Peas Delight #21",
-          "ageGroup": "Baby",
-          "mealType": "Lunch",
-          "cookTime": "10 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Banana",
-            "Peas",
-            "Guava",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the banana.",
-            "Prepare the peas.",
-            "Mix with guava.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "11 g",
-            "fiber": "4 g",
-            "fat": "7 g",
-            "calories": "143 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 22,
-          "name": "Papaya & Carrot Delight #22",
-          "ageGroup": "Adult",
-          "mealType": "Dinner",
-          "cookTime": "11 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Papaya",
-            "Carrot",
-            "Spinach",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the papaya.",
-            "Prepare the carrot.",
-            "Mix with spinach.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "12 g",
-            "fiber": "5 g",
-            "fat": "8 g",
-            "calories": "146 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 23,
-          "name": "Corn & Mango Delight #23",
-          "ageGroup": "Senior",
-          "mealType": "Snack",
-          "cookTime": "12 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Corn",
-            "Mango",
-            "Pumpkin",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the corn.",
-            "Prepare the mango.",
-            "Mix with pumpkin.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "13 g",
-            "fiber": "6 g",
-            "fat": "9 g",
-            "calories": "149 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 24,
-          "name": "Peas & Guava Delight #24",
-          "ageGroup": "Baby",
-          "mealType": "Breakfast",
-          "cookTime": "13 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Peas",
-            "Guava",
-            "Apple",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the peas.",
-            "Prepare the guava.",
-            "Mix with apple.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "14 g",
-            "fiber": "1 g",
-            "fat": "2 g",
-            "calories": "152 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 25,
-          "name": "Carrot & Spinach Delight #25",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "14 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Carrot",
-            "Spinach",
-            "Banana",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the carrot.",
-            "Prepare the spinach.",
-            "Mix with banana.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "15 g",
-            "fiber": "2 g",
-            "fat": "3 g",
-            "calories": "155 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 26,
-          "name": "Mango & Pumpkin Delight #26",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "15 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Mango",
-            "Pumpkin",
-            "Papaya",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the mango.",
-            "Prepare the pumpkin.",
-            "Mix with papaya.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "16 g",
-            "fiber": "3 g",
-            "fat": "4 g",
-            "calories": "158 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 27,
-          "name": "Guava & Apple Delight #27",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "16 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Guava",
-            "Apple",
-            "Corn",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the guava.",
-            "Prepare the apple.",
-            "Mix with corn.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "17 g",
-            "fiber": "4 g",
-            "fat": "5 g",
-            "calories": "161 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 28,
-          "name": "Spinach & Banana Delight #28",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "17 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Spinach",
-            "Banana",
-            "Peas",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the spinach.",
-            "Prepare the banana.",
-            "Mix with peas.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "18 g",
-            "fiber": "5 g",
-            "fat": "6 g",
-            "calories": "164 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 29,
-          "name": "Pumpkin & Papaya Delight #29",
-          "ageGroup": "Senior",
-          "mealType": "Lunch",
-          "cookTime": "18 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Pumpkin",
-            "Papaya",
-            "Carrot",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the pumpkin.",
-            "Prepare the papaya.",
-            "Mix with carrot.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "19 g",
-            "fiber": "6 g",
-            "fat": "7 g",
-            "calories": "167 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 30,
-          "name": "Apple & Corn Delight #30",
-          "ageGroup": "Baby",
-          "mealType": "Dinner",
-          "cookTime": "19 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Apple",
-            "Corn",
-            "Mango",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the apple.",
-            "Prepare the corn.",
-            "Mix with mango.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "20 g",
-            "fiber": "1 g",
-            "fat": "8 g",
-            "calories": "170 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 31,
-          "name": "Banana & Peas Delight #31",
-          "ageGroup": "Adult",
-          "mealType": "Snack",
-          "cookTime": "20 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Banana",
-            "Peas",
-            "Guava",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the banana.",
-            "Prepare the peas.",
-            "Mix with guava.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "21 g",
-            "fiber": "2 g",
-            "fat": "9 g",
-            "calories": "173 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 32,
-          "name": "Papaya & Carrot Delight #32",
-          "ageGroup": "Senior",
-          "mealType": "Breakfast",
-          "cookTime": "21 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Papaya",
-            "Carrot",
-            "Spinach",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the papaya.",
-            "Prepare the carrot.",
-            "Mix with spinach.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "22 g",
-            "fiber": "3 g",
-            "fat": "2 g",
-            "calories": "176 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 33,
-          "name": "Corn & Mango Delight #33",
-          "ageGroup": "Baby",
-          "mealType": "Lunch",
-          "cookTime": "22 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Corn",
-            "Mango",
-            "Pumpkin",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the corn.",
-            "Prepare the mango.",
-            "Mix with pumpkin.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "23 g",
-            "fiber": "4 g",
-            "fat": "3 g",
-            "calories": "179 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 34,
-          "name": "Peas & Guava Delight #34",
-          "ageGroup": "Adult",
-          "mealType": "Dinner",
-          "cookTime": "23 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Peas",
-            "Guava",
-            "Apple",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the peas.",
-            "Prepare the guava.",
-            "Mix with apple.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "24 g",
-            "fiber": "5 g",
-            "fat": "4 g",
-            "calories": "182 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 35,
-          "name": "Carrot & Spinach Delight #35",
-          "ageGroup": "Senior",
-          "mealType": "Snack",
-          "cookTime": "24 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Carrot",
-            "Spinach",
-            "Banana",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the carrot.",
-            "Prepare the spinach.",
-            "Mix with banana.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "25 g",
-            "fiber": "6 g",
-            "fat": "5 g",
-            "calories": "185 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 36,
-          "name": "Mango & Pumpkin Delight #36",
-          "ageGroup": "Baby",
-          "mealType": "Breakfast",
-          "cookTime": "25 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Mango",
-            "Pumpkin",
-            "Papaya",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the mango.",
-            "Prepare the pumpkin.",
-            "Mix with papaya.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "26 g",
-            "fiber": "1 g",
-            "fat": "6 g",
-            "calories": "188 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 37,
-          "name": "Guava & Apple Delight #37",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "26 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Guava",
-            "Apple",
-            "Corn",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the guava.",
-            "Prepare the apple.",
-            "Mix with corn.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "27 g",
-            "fiber": "2 g",
-            "fat": "7 g",
-            "calories": "191 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 38,
-          "name": "Spinach & Banana Delight #38",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "27 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Spinach",
-            "Banana",
-            "Peas",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the spinach.",
-            "Prepare the banana.",
-            "Mix with peas.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "28 g",
-            "fiber": "3 g",
-            "fat": "8 g",
-            "calories": "194 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 39,
-          "name": "Pumpkin & Papaya Delight #39",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "28 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Pumpkin",
-            "Papaya",
-            "Carrot",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the pumpkin.",
-            "Prepare the papaya.",
-            "Mix with carrot.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "29 g",
-            "fiber": "4 g",
-            "fat": "9 g",
-            "calories": "197 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 40,
-          "name": "Apple & Corn Delight #40",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "29 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Apple",
-            "Corn",
-            "Mango",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the apple.",
-            "Prepare the corn.",
-            "Mix with mango.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "10 g",
-            "fiber": "5 g",
-            "fat": "2 g",
-            "calories": "200 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 41,
-          "name": "Banana & Peas Delight #41",
-          "ageGroup": "Senior",
-          "mealType": "Lunch",
-          "cookTime": "30 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Banana",
-            "Peas",
-            "Guava",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the banana.",
-            "Prepare the peas.",
-            "Mix with guava.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "11 g",
-            "fiber": "6 g",
-            "fat": "3 g",
-            "calories": "203 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 42,
-          "name": "Papaya & Carrot Delight #42",
-          "ageGroup": "Baby",
-          "mealType": "Dinner",
-          "cookTime": "10 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Papaya",
-            "Carrot",
-            "Spinach",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the papaya.",
-            "Prepare the carrot.",
-            "Mix with spinach.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "12 g",
-            "fiber": "1 g",
-            "fat": "4 g",
-            "calories": "206 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 43,
-          "name": "Corn & Mango Delight #43",
-          "ageGroup": "Adult",
-          "mealType": "Snack",
-          "cookTime": "11 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Corn",
-            "Mango",
-            "Pumpkin",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the corn.",
-            "Prepare the mango.",
-            "Mix with pumpkin.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "13 g",
-            "fiber": "2 g",
-            "fat": "5 g",
-            "calories": "209 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 44,
-          "name": "Peas & Guava Delight #44",
-          "ageGroup": "Senior",
-          "mealType": "Breakfast",
-          "cookTime": "12 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Peas",
-            "Guava",
-            "Apple",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the peas.",
-            "Prepare the guava.",
-            "Mix with apple.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "14 g",
-            "fiber": "3 g",
-            "fat": "6 g",
-            "calories": "212 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 45,
-          "name": "Carrot & Spinach Delight #45",
-          "ageGroup": "Baby",
-          "mealType": "Lunch",
-          "cookTime": "13 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Carrot",
-            "Spinach",
-            "Banana",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the carrot.",
-            "Prepare the spinach.",
-            "Mix with banana.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "15 g",
-            "fiber": "4 g",
-            "fat": "7 g",
-            "calories": "215 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 46,
-          "name": "Mango & Pumpkin Delight #46",
-          "ageGroup": "Adult",
-          "mealType": "Dinner",
-          "cookTime": "14 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Mango",
-            "Pumpkin",
-            "Papaya",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the mango.",
-            "Prepare the pumpkin.",
-            "Mix with papaya.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "16 g",
-            "fiber": "5 g",
-            "fat": "8 g",
-            "calories": "218 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 47,
-          "name": "Guava & Apple Delight #47",
-          "ageGroup": "Senior",
-          "mealType": "Snack",
-          "cookTime": "15 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Guava",
-            "Apple",
-            "Corn",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the guava.",
-            "Prepare the apple.",
-            "Mix with corn.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "17 g",
-            "fiber": "6 g",
-            "fat": "9 g",
-            "calories": "221 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 48,
-          "name": "Spinach & Banana Delight #48",
-          "ageGroup": "Baby",
-          "mealType": "Breakfast",
-          "cookTime": "16 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Spinach",
-            "Banana",
-            "Peas",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the spinach.",
-            "Prepare the banana.",
-            "Mix with peas.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "18 g",
-            "fiber": "1 g",
-            "fat": "2 g",
-            "calories": "224 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 49,
-          "name": "Pumpkin & Papaya Delight #49",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "17 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Pumpkin",
-            "Papaya",
-            "Carrot",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the pumpkin.",
-            "Prepare the papaya.",
-            "Mix with carrot.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "19 g",
-            "fiber": "2 g",
-            "fat": "3 g",
-            "calories": "227 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 50,
-          "name": "Apple & Corn Delight #50",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "18 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Apple",
-            "Corn",
-            "Mango",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the apple.",
-            "Prepare the corn.",
-            "Mix with mango.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "20 g",
-            "fiber": "3 g",
-            "fat": "4 g",
-            "calories": "230 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 51,
-          "name": "Banana & Peas Delight #51",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "19 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Banana",
-            "Peas",
-            "Guava",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the banana.",
-            "Prepare the peas.",
-            "Mix with guava.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "21 g",
-            "fiber": "4 g",
-            "fat": "5 g",
-            "calories": "233 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 52,
-          "name": "Papaya & Carrot Delight #52",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "20 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Papaya",
-            "Carrot",
-            "Spinach",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the papaya.",
-            "Prepare the carrot.",
-            "Mix with spinach.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "22 g",
-            "fiber": "5 g",
-            "fat": "6 g",
-            "calories": "236 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 53,
-          "name": "Corn & Mango Delight #53",
-          "ageGroup": "Senior",
-          "mealType": "Lunch",
-          "cookTime": "21 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Corn",
-            "Mango",
-            "Pumpkin",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the corn.",
-            "Prepare the mango.",
-            "Mix with pumpkin.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "23 g",
-            "fiber": "6 g",
-            "fat": "7 g",
-            "calories": "239 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 54,
-          "name": "Peas & Guava Delight #54",
-          "ageGroup": "Baby",
-          "mealType": "Dinner",
-          "cookTime": "22 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Peas",
-            "Guava",
-            "Apple",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the peas.",
-            "Prepare the guava.",
-            "Mix with apple.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "24 g",
-            "fiber": "1 g",
-            "fat": "8 g",
-            "calories": "242 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 55,
-          "name": "Carrot & Spinach Delight #55",
-          "ageGroup": "Adult",
-          "mealType": "Snack",
-          "cookTime": "23 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Carrot",
-            "Spinach",
-            "Banana",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the carrot.",
-            "Prepare the spinach.",
-            "Mix with banana.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "25 g",
-            "fiber": "2 g",
-            "fat": "9 g",
-            "calories": "245 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 56,
-          "name": "Mango & Pumpkin Delight #56",
-          "ageGroup": "Senior",
-          "mealType": "Breakfast",
-          "cookTime": "24 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Mango",
-            "Pumpkin",
-            "Papaya",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the mango.",
-            "Prepare the pumpkin.",
-            "Mix with papaya.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "26 g",
-            "fiber": "3 g",
-            "fat": "2 g",
-            "calories": "248 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 57,
-          "name": "Guava & Apple Delight #57",
-          "ageGroup": "Baby",
-          "mealType": "Lunch",
-          "cookTime": "25 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Guava",
-            "Apple",
-            "Corn",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the guava.",
-            "Prepare the apple.",
-            "Mix with corn.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "27 g",
-            "fiber": "4 g",
-            "fat": "3 g",
-            "calories": "251 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 58,
-          "name": "Spinach & Banana Delight #58",
-          "ageGroup": "Adult",
-          "mealType": "Dinner",
-          "cookTime": "26 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Spinach",
-            "Banana",
-            "Peas",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the spinach.",
-            "Prepare the banana.",
-            "Mix with peas.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "28 g",
-            "fiber": "5 g",
-            "fat": "4 g",
-            "calories": "254 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 59,
-          "name": "Pumpkin & Papaya Delight #59",
-          "ageGroup": "Senior",
-          "mealType": "Snack",
-          "cookTime": "27 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Pumpkin",
-            "Papaya",
-            "Carrot",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the pumpkin.",
-            "Prepare the papaya.",
-            "Mix with carrot.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "29 g",
-            "fiber": "6 g",
-            "fat": "5 g",
-            "calories": "257 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 60,
-          "name": "Apple & Corn Delight #60",
-          "ageGroup": "Baby",
-          "mealType": "Breakfast",
-          "cookTime": "28 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Apple",
-            "Corn",
-            "Mango",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the apple.",
-            "Prepare the corn.",
-            "Mix with mango.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "10 g",
-            "fiber": "1 g",
-            "fat": "6 g",
-            "calories": "260 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 61,
-          "name": "Banana & Peas Delight #61",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "29 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Banana",
-            "Peas",
-            "Guava",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the banana.",
-            "Prepare the peas.",
-            "Mix with guava.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "11 g",
-            "fiber": "2 g",
-            "fat": "7 g",
-            "calories": "263 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 62,
-          "name": "Papaya & Carrot Delight #62",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "30 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Papaya",
-            "Carrot",
-            "Spinach",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the papaya.",
-            "Prepare the carrot.",
-            "Mix with spinach.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "12 g",
-            "fiber": "3 g",
-            "fat": "8 g",
-            "calories": "266 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 63,
-          "name": "Corn & Mango Delight #63",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "10 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Corn",
-            "Mango",
-            "Pumpkin",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the corn.",
-            "Prepare the mango.",
-            "Mix with pumpkin.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "13 g",
-            "fiber": "4 g",
-            "fat": "9 g",
-            "calories": "269 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 64,
-          "name": "Peas & Guava Delight #64",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "11 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Peas",
-            "Guava",
-            "Apple",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the peas.",
-            "Prepare the guava.",
-            "Mix with apple.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "14 g",
-            "fiber": "5 g",
-            "fat": "2 g",
-            "calories": "272 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 65,
-          "name": "Carrot & Spinach Delight #65",
-          "ageGroup": "Senior",
-          "mealType": "Lunch",
-          "cookTime": "12 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Carrot",
-            "Spinach",
-            "Banana",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the carrot.",
-            "Prepare the spinach.",
-            "Mix with banana.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "15 g",
-            "fiber": "6 g",
-            "fat": "3 g",
-            "calories": "275 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 66,
-          "name": "Mango & Pumpkin Delight #66",
-          "ageGroup": "Baby",
-          "mealType": "Dinner",
-          "cookTime": "13 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Mango",
-            "Pumpkin",
-            "Papaya",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the mango.",
-            "Prepare the pumpkin.",
-            "Mix with papaya.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "16 g",
-            "fiber": "1 g",
-            "fat": "4 g",
-            "calories": "278 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 67,
-          "name": "Guava & Apple Delight #67",
-          "ageGroup": "Adult",
-          "mealType": "Snack",
-          "cookTime": "14 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Guava",
-            "Apple",
-            "Corn",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the guava.",
-            "Prepare the apple.",
-            "Mix with corn.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "17 g",
-            "fiber": "2 g",
-            "fat": "5 g",
-            "calories": "281 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 68,
-          "name": "Spinach & Banana Delight #68",
-          "ageGroup": "Senior",
-          "mealType": "Breakfast",
-          "cookTime": "15 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Spinach",
-            "Banana",
-            "Peas",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the spinach.",
-            "Prepare the banana.",
-            "Mix with peas.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "18 g",
-            "fiber": "3 g",
-            "fat": "6 g",
-            "calories": "284 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 69,
-          "name": "Pumpkin & Papaya Delight #69",
-          "ageGroup": "Baby",
-          "mealType": "Lunch",
-          "cookTime": "16 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Pumpkin",
-            "Papaya",
-            "Carrot",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the pumpkin.",
-            "Prepare the papaya.",
-            "Mix with carrot.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "19 g",
-            "fiber": "4 g",
-            "fat": "7 g",
-            "calories": "287 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 70,
-          "name": "Apple & Corn Delight #70",
-          "ageGroup": "Adult",
-          "mealType": "Dinner",
-          "cookTime": "17 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Apple",
-            "Corn",
-            "Mango",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the apple.",
-            "Prepare the corn.",
-            "Mix with mango.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "20 g",
-            "fiber": "5 g",
-            "fat": "8 g",
-            "calories": "290 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 71,
-          "name": "Banana & Peas Delight #71",
-          "ageGroup": "Senior",
-          "mealType": "Snack",
-          "cookTime": "18 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Banana",
-            "Peas",
-            "Guava",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the banana.",
-            "Prepare the peas.",
-            "Mix with guava.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "21 g",
-            "fiber": "6 g",
-            "fat": "9 g",
-            "calories": "293 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 72,
-          "name": "Papaya & Carrot Delight #72",
-          "ageGroup": "Baby",
-          "mealType": "Breakfast",
-          "cookTime": "19 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Papaya",
-            "Carrot",
-            "Spinach",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the papaya.",
-            "Prepare the carrot.",
-            "Mix with spinach.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "22 g",
-            "fiber": "1 g",
-            "fat": "2 g",
-            "calories": "296 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 73,
-          "name": "Corn & Mango Delight #73",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "20 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Corn",
-            "Mango",
-            "Pumpkin",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the corn.",
-            "Prepare the mango.",
-            "Mix with pumpkin.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "23 g",
-            "fiber": "2 g",
-            "fat": "3 g",
-            "calories": "299 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 74,
-          "name": "Peas & Guava Delight #74",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "21 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Peas",
-            "Guava",
-            "Apple",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the peas.",
-            "Prepare the guava.",
-            "Mix with apple.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "24 g",
-            "fiber": "3 g",
-            "fat": "4 g",
-            "calories": "302 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 75,
-          "name": "Carrot & Spinach Delight #75",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "22 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Carrot",
-            "Spinach",
-            "Banana",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the carrot.",
-            "Prepare the spinach.",
-            "Mix with banana.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "25 g",
-            "fiber": "4 g",
-            "fat": "5 g",
-            "calories": "305 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 76,
-          "name": "Mango & Pumpkin Delight #76",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "23 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Mango",
-            "Pumpkin",
-            "Papaya",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the mango.",
-            "Prepare the pumpkin.",
-            "Mix with papaya.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "26 g",
-            "fiber": "5 g",
-            "fat": "6 g",
-            "calories": "308 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 77,
-          "name": "Guava & Apple Delight #77",
-          "ageGroup": "Senior",
-          "mealType": "Lunch",
-          "cookTime": "24 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Guava",
-            "Apple",
-            "Corn",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the guava.",
-            "Prepare the apple.",
-            "Mix with corn.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "27 g",
-            "fiber": "6 g",
-            "fat": "7 g",
-            "calories": "311 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 78,
-          "name": "Spinach & Banana Delight #78",
-          "ageGroup": "Baby",
-          "mealType": "Dinner",
-          "cookTime": "25 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Spinach",
-            "Banana",
-            "Peas",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the spinach.",
-            "Prepare the banana.",
-            "Mix with peas.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "28 g",
-            "fiber": "1 g",
-            "fat": "8 g",
-            "calories": "314 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 79,
-          "name": "Pumpkin & Papaya Delight #79",
-          "ageGroup": "Adult",
-          "mealType": "Snack",
-          "cookTime": "26 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Pumpkin",
-            "Papaya",
-            "Carrot",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the pumpkin.",
-            "Prepare the papaya.",
-            "Mix with carrot.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "29 g",
-            "fiber": "2 g",
-            "fat": "9 g",
-            "calories": "317 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 80,
-          "name": "Apple & Corn Delight #80",
-          "ageGroup": "Senior",
-          "mealType": "Breakfast",
-          "cookTime": "27 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Apple",
-            "Corn",
-            "Mango",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the apple.",
-            "Prepare the corn.",
-            "Mix with mango.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "10 g",
-            "fiber": "3 g",
-            "fat": "2 g",
-            "calories": "320 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 81,
-          "name": "Banana & Peas Delight #81",
-          "ageGroup": "Baby",
-          "mealType": "Lunch",
-          "cookTime": "28 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Banana",
-            "Peas",
-            "Guava",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the banana.",
-            "Prepare the peas.",
-            "Mix with guava.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "11 g",
-            "fiber": "4 g",
-            "fat": "3 g",
-            "calories": "323 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 82,
-          "name": "Papaya & Carrot Delight #82",
-          "ageGroup": "Adult",
-          "mealType": "Dinner",
-          "cookTime": "29 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Papaya",
-            "Carrot",
-            "Spinach",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the papaya.",
-            "Prepare the carrot.",
-            "Mix with spinach.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "12 g",
-            "fiber": "5 g",
-            "fat": "4 g",
-            "calories": "326 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 83,
-          "name": "Corn & Mango Delight #83",
-          "ageGroup": "Senior",
-          "mealType": "Snack",
-          "cookTime": "30 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Corn",
-            "Mango",
-            "Pumpkin",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the corn.",
-            "Prepare the mango.",
-            "Mix with pumpkin.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "13 g",
-            "fiber": "6 g",
-            "fat": "5 g",
-            "calories": "329 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 84,
-          "name": "Peas & Guava Delight #84",
-          "ageGroup": "Baby",
-          "mealType": "Breakfast",
-          "cookTime": "10 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Peas",
-            "Guava",
-            "Apple",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the peas.",
-            "Prepare the guava.",
-            "Mix with apple.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "14 g",
-            "fiber": "1 g",
-            "fat": "6 g",
-            "calories": "332 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 85,
-          "name": "Carrot & Spinach Delight #85",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "11 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Carrot",
-            "Spinach",
-            "Banana",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the carrot.",
-            "Prepare the spinach.",
-            "Mix with banana.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "15 g",
-            "fiber": "2 g",
-            "fat": "7 g",
-            "calories": "335 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 86,
-          "name": "Mango & Pumpkin Delight #86",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "12 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Mango",
-            "Pumpkin",
-            "Papaya",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the mango.",
-            "Prepare the pumpkin.",
-            "Mix with papaya.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "16 g",
-            "fiber": "3 g",
-            "fat": "8 g",
-            "calories": "338 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 87,
-          "name": "Guava & Apple Delight #87",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "13 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Guava",
-            "Apple",
-            "Corn",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the guava.",
-            "Prepare the apple.",
-            "Mix with corn.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "17 g",
-            "fiber": "4 g",
-            "fat": "9 g",
-            "calories": "341 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 88,
-          "name": "Spinach & Banana Delight #88",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "14 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Spinach",
-            "Banana",
-            "Peas",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the spinach.",
-            "Prepare the banana.",
-            "Mix with peas.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "18 g",
-            "fiber": "5 g",
-            "fat": "2 g",
-            "calories": "344 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 89,
-          "name": "Pumpkin & Papaya Delight #89",
-          "ageGroup": "Senior",
-          "mealType": "Lunch",
-          "cookTime": "15 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Pumpkin",
-            "Papaya",
-            "Carrot",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the pumpkin.",
-            "Prepare the papaya.",
-            "Mix with carrot.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "19 g",
-            "fiber": "6 g",
-            "fat": "3 g",
-            "calories": "347 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 90,
-          "name": "Apple & Corn Delight #90",
-          "ageGroup": "Baby",
-          "mealType": "Dinner",
-          "cookTime": "16 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Apple",
-            "Corn",
-            "Mango",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the apple.",
-            "Prepare the corn.",
-            "Mix with mango.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "20 g",
-            "fiber": "1 g",
-            "fat": "4 g",
-            "calories": "350 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 91,
-          "name": "Banana & Peas Delight #91",
-          "ageGroup": "Adult",
-          "mealType": "Snack",
-          "cookTime": "17 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Banana",
-            "Peas",
-            "Guava",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the banana.",
-            "Prepare the peas.",
-            "Mix with guava.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "21 g",
-            "fiber": "2 g",
-            "fat": "5 g",
-            "calories": "353 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 92,
-          "name": "Papaya & Carrot Delight #92",
-          "ageGroup": "Senior",
-          "mealType": "Breakfast",
-          "cookTime": "18 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Papaya",
-            "Carrot",
-            "Spinach",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the papaya.",
-            "Prepare the carrot.",
-            "Mix with spinach.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "22 g",
-            "fiber": "3 g",
-            "fat": "6 g",
-            "calories": "356 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 93,
-          "name": "Corn & Mango Delight #93",
-          "ageGroup": "Baby",
-          "mealType": "Lunch",
-          "cookTime": "19 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Corn",
-            "Mango",
-            "Pumpkin",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the corn.",
-            "Prepare the mango.",
-            "Mix with pumpkin.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "23 g",
-            "fiber": "4 g",
-            "fat": "7 g",
-            "calories": "359 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 94,
-          "name": "Peas & Guava Delight #94",
-          "ageGroup": "Adult",
-          "mealType": "Dinner",
-          "cookTime": "20 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Peas",
-            "Guava",
-            "Apple",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the peas.",
-            "Prepare the guava.",
-            "Mix with apple.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "24 g",
-            "fiber": "5 g",
-            "fat": "8 g",
-            "calories": "362 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 95,
-          "name": "Carrot & Spinach Delight #95",
-          "ageGroup": "Senior",
-          "mealType": "Snack",
-          "cookTime": "21 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Carrot",
-            "Spinach",
-            "Banana",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the carrot.",
-            "Prepare the spinach.",
-            "Mix with banana.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "25 g",
-            "fiber": "6 g",
-            "fat": "9 g",
-            "calories": "365 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 96,
-          "name": "Mango & Pumpkin Delight #96",
-          "ageGroup": "Baby",
-          "mealType": "Breakfast",
-          "cookTime": "22 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Mango",
-            "Pumpkin",
-            "Papaya",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the mango.",
-            "Prepare the pumpkin.",
-            "Mix with papaya.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "26 g",
-            "fiber": "1 g",
-            "fat": "2 g",
-            "calories": "368 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 97,
-          "name": "Guava & Apple Delight #97",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "23 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Guava",
-            "Apple",
-            "Corn",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the guava.",
-            "Prepare the apple.",
-            "Mix with corn.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "27 g",
-            "fiber": "2 g",
-            "fat": "3 g",
-            "calories": "371 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 98,
-          "name": "Spinach & Banana Delight #98",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "24 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Spinach",
-            "Banana",
-            "Peas",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the spinach.",
-            "Prepare the banana.",
-            "Mix with peas.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "28 g",
-            "fiber": "3 g",
-            "fat": "4 g",
-            "calories": "374 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 99,
-          "name": "Pumpkin & Papaya Delight #99",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "25 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Pumpkin",
-            "Papaya",
-            "Carrot",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the pumpkin.",
-            "Prepare the papaya.",
-            "Mix with carrot.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "29 g",
-            "fiber": "4 g",
-            "fat": "5 g",
-            "calories": "377 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 100,
-          "name": "Apple & Corn Delight #100",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "26 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Apple",
-            "Corn",
-            "Mango",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the apple.",
-            "Prepare the corn.",
-            "Mix with mango.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "10 g",
-            "fiber": "5 g",
-            "fat": "6 g",
-            "calories": "380 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        }
-      ],
-      "fish": [
-        {
-          "id": 1,
-          "name": "Shrimp & Zucchini Delight #1",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "11 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Shrimp",
-            "Zucchini",
-            "Daphnia",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the shrimp.",
-            "Prepare the zucchini.",
-            "Mix with daphnia.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "11 g",
-            "fiber": "2 g",
-            "fat": "3 g",
-            "calories": "83 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 2,
-          "name": "Bloodworms & Algae Delight #2",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "12 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Bloodworms",
-            "Algae",
-            "Duckweed",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the bloodworms.",
-            "Prepare the algae.",
-            "Mix with duckweed.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "12 g",
-            "fiber": "3 g",
-            "fat": "4 g",
-            "calories": "86 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 3,
-          "name": "Spinach & Brine Shrimp Delight #3",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "13 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Spinach",
-            "Brine Shrimp",
-            "Pumpkin",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the spinach.",
-            "Prepare the brine shrimp.",
-            "Mix with pumpkin.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "13 g",
-            "fiber": "4 g",
-            "fat": "5 g",
-            "calories": "89 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 4,
-          "name": "Zucchini & Daphnia Delight #4",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "14 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Zucchini",
-            "Daphnia",
-            "Peas",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the zucchini.",
-            "Prepare the daphnia.",
-            "Mix with peas.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "14 g",
-            "fiber": "5 g",
-            "fat": "6 g",
-            "calories": "92 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 5,
-          "name": "Algae & Duckweed Delight #5",
-          "ageGroup": "Senior",
-          "mealType": "Lunch",
-          "cookTime": "15 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Algae",
-            "Duckweed",
-            "Shrimp",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the algae.",
-            "Prepare the duckweed.",
-            "Mix with shrimp.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "15 g",
-            "fiber": "6 g",
-            "fat": "7 g",
-            "calories": "95 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 6,
-          "name": "Brine Shrimp & Pumpkin Delight #6",
-          "ageGroup": "Baby",
-          "mealType": "Dinner",
-          "cookTime": "16 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Brine Shrimp",
-            "Pumpkin",
-            "Bloodworms",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the brine shrimp.",
-            "Prepare the pumpkin.",
-            "Mix with bloodworms.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "16 g",
-            "fiber": "1 g",
-            "fat": "8 g",
-            "calories": "98 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 7,
-          "name": "Daphnia & Peas Delight #7",
-          "ageGroup": "Adult",
-          "mealType": "Snack",
-          "cookTime": "17 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Daphnia",
-            "Peas",
-            "Spinach",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the daphnia.",
-            "Prepare the peas.",
-            "Mix with spinach.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "17 g",
-            "fiber": "2 g",
-            "fat": "9 g",
-            "calories": "101 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 8,
-          "name": "Duckweed & Shrimp Delight #8",
-          "ageGroup": "Senior",
-          "mealType": "Breakfast",
-          "cookTime": "18 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Duckweed",
-            "Shrimp",
-            "Zucchini",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the duckweed.",
-            "Prepare the shrimp.",
-            "Mix with zucchini.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "18 g",
-            "fiber": "3 g",
-            "fat": "2 g",
-            "calories": "104 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 9,
-          "name": "Pumpkin & Bloodworms Delight #9",
-          "ageGroup": "Baby",
-          "mealType": "Lunch",
-          "cookTime": "19 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Pumpkin",
-            "Bloodworms",
-            "Algae",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the pumpkin.",
-            "Prepare the bloodworms.",
-            "Mix with algae.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "19 g",
-            "fiber": "4 g",
-            "fat": "3 g",
-            "calories": "107 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 10,
-          "name": "Peas & Spinach Delight #10",
-          "ageGroup": "Adult",
-          "mealType": "Dinner",
-          "cookTime": "20 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Peas",
-            "Spinach",
-            "Brine Shrimp",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the peas.",
-            "Prepare the spinach.",
-            "Mix with brine shrimp.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "20 g",
-            "fiber": "5 g",
-            "fat": "4 g",
-            "calories": "110 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 11,
-          "name": "Shrimp & Zucchini Delight #11",
-          "ageGroup": "Senior",
-          "mealType": "Snack",
-          "cookTime": "21 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Shrimp",
-            "Zucchini",
-            "Daphnia",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the shrimp.",
-            "Prepare the zucchini.",
-            "Mix with daphnia.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "21 g",
-            "fiber": "6 g",
-            "fat": "5 g",
-            "calories": "113 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 12,
-          "name": "Bloodworms & Algae Delight #12",
-          "ageGroup": "Baby",
-          "mealType": "Breakfast",
-          "cookTime": "22 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Bloodworms",
-            "Algae",
-            "Duckweed",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the bloodworms.",
-            "Prepare the algae.",
-            "Mix with duckweed.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "22 g",
-            "fiber": "1 g",
-            "fat": "6 g",
-            "calories": "116 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 13,
-          "name": "Spinach & Brine Shrimp Delight #13",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "23 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Spinach",
-            "Brine Shrimp",
-            "Pumpkin",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the spinach.",
-            "Prepare the brine shrimp.",
-            "Mix with pumpkin.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "23 g",
-            "fiber": "2 g",
-            "fat": "7 g",
-            "calories": "119 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 14,
-          "name": "Zucchini & Daphnia Delight #14",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "24 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Zucchini",
-            "Daphnia",
-            "Peas",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the zucchini.",
-            "Prepare the daphnia.",
-            "Mix with peas.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "24 g",
-            "fiber": "3 g",
-            "fat": "8 g",
-            "calories": "122 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 15,
-          "name": "Algae & Duckweed Delight #15",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "25 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Algae",
-            "Duckweed",
-            "Shrimp",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the algae.",
-            "Prepare the duckweed.",
-            "Mix with shrimp.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "25 g",
-            "fiber": "4 g",
-            "fat": "9 g",
-            "calories": "125 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 16,
-          "name": "Brine Shrimp & Pumpkin Delight #16",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "26 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Brine Shrimp",
-            "Pumpkin",
-            "Bloodworms",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the brine shrimp.",
-            "Prepare the pumpkin.",
-            "Mix with bloodworms.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "26 g",
-            "fiber": "5 g",
-            "fat": "2 g",
-            "calories": "128 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 17,
-          "name": "Daphnia & Peas Delight #17",
-          "ageGroup": "Senior",
-          "mealType": "Lunch",
-          "cookTime": "27 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Daphnia",
-            "Peas",
-            "Spinach",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the daphnia.",
-            "Prepare the peas.",
-            "Mix with spinach.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "27 g",
-            "fiber": "6 g",
-            "fat": "3 g",
-            "calories": "131 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 18,
-          "name": "Duckweed & Shrimp Delight #18",
-          "ageGroup": "Baby",
-          "mealType": "Dinner",
-          "cookTime": "28 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Duckweed",
-            "Shrimp",
-            "Zucchini",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the duckweed.",
-            "Prepare the shrimp.",
-            "Mix with zucchini.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "28 g",
-            "fiber": "1 g",
-            "fat": "4 g",
-            "calories": "134 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 19,
-          "name": "Pumpkin & Bloodworms Delight #19",
-          "ageGroup": "Adult",
-          "mealType": "Snack",
-          "cookTime": "29 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Pumpkin",
-            "Bloodworms",
-            "Algae",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the pumpkin.",
-            "Prepare the bloodworms.",
-            "Mix with algae.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "29 g",
-            "fiber": "2 g",
-            "fat": "5 g",
-            "calories": "137 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 20,
-          "name": "Peas & Spinach Delight #20",
-          "ageGroup": "Senior",
-          "mealType": "Breakfast",
-          "cookTime": "30 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Peas",
-            "Spinach",
-            "Brine Shrimp",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the peas.",
-            "Prepare the spinach.",
-            "Mix with brine shrimp.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "10 g",
-            "fiber": "3 g",
-            "fat": "6 g",
-            "calories": "140 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 21,
-          "name": "Shrimp & Zucchini Delight #21",
-          "ageGroup": "Baby",
-          "mealType": "Lunch",
-          "cookTime": "10 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Shrimp",
-            "Zucchini",
-            "Daphnia",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the shrimp.",
-            "Prepare the zucchini.",
-            "Mix with daphnia.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "11 g",
-            "fiber": "4 g",
-            "fat": "7 g",
-            "calories": "143 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 22,
-          "name": "Bloodworms & Algae Delight #22",
-          "ageGroup": "Adult",
-          "mealType": "Dinner",
-          "cookTime": "11 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Bloodworms",
-            "Algae",
-            "Duckweed",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the bloodworms.",
-            "Prepare the algae.",
-            "Mix with duckweed.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "12 g",
-            "fiber": "5 g",
-            "fat": "8 g",
-            "calories": "146 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 23,
-          "name": "Spinach & Brine Shrimp Delight #23",
-          "ageGroup": "Senior",
-          "mealType": "Snack",
-          "cookTime": "12 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Spinach",
-            "Brine Shrimp",
-            "Pumpkin",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the spinach.",
-            "Prepare the brine shrimp.",
-            "Mix with pumpkin.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "13 g",
-            "fiber": "6 g",
-            "fat": "9 g",
-            "calories": "149 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 24,
-          "name": "Zucchini & Daphnia Delight #24",
-          "ageGroup": "Baby",
-          "mealType": "Breakfast",
-          "cookTime": "13 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Zucchini",
-            "Daphnia",
-            "Peas",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the zucchini.",
-            "Prepare the daphnia.",
-            "Mix with peas.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "14 g",
-            "fiber": "1 g",
-            "fat": "2 g",
-            "calories": "152 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 25,
-          "name": "Algae & Duckweed Delight #25",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "14 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Algae",
-            "Duckweed",
-            "Shrimp",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the algae.",
-            "Prepare the duckweed.",
-            "Mix with shrimp.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "15 g",
-            "fiber": "2 g",
-            "fat": "3 g",
-            "calories": "155 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 26,
-          "name": "Brine Shrimp & Pumpkin Delight #26",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "15 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Brine Shrimp",
-            "Pumpkin",
-            "Bloodworms",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the brine shrimp.",
-            "Prepare the pumpkin.",
-            "Mix with bloodworms.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "16 g",
-            "fiber": "3 g",
-            "fat": "4 g",
-            "calories": "158 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 27,
-          "name": "Daphnia & Peas Delight #27",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "16 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Daphnia",
-            "Peas",
-            "Spinach",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the daphnia.",
-            "Prepare the peas.",
-            "Mix with spinach.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "17 g",
-            "fiber": "4 g",
-            "fat": "5 g",
-            "calories": "161 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 28,
-          "name": "Duckweed & Shrimp Delight #28",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "17 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Duckweed",
-            "Shrimp",
-            "Zucchini",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the duckweed.",
-            "Prepare the shrimp.",
-            "Mix with zucchini.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "18 g",
-            "fiber": "5 g",
-            "fat": "6 g",
-            "calories": "164 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 29,
-          "name": "Pumpkin & Bloodworms Delight #29",
-          "ageGroup": "Senior",
-          "mealType": "Lunch",
-          "cookTime": "18 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Pumpkin",
-            "Bloodworms",
-            "Algae",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the pumpkin.",
-            "Prepare the bloodworms.",
-            "Mix with algae.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "19 g",
-            "fiber": "6 g",
-            "fat": "7 g",
-            "calories": "167 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 30,
-          "name": "Peas & Spinach Delight #30",
-          "ageGroup": "Baby",
-          "mealType": "Dinner",
-          "cookTime": "19 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Peas",
-            "Spinach",
-            "Brine Shrimp",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the peas.",
-            "Prepare the spinach.",
-            "Mix with brine shrimp.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "20 g",
-            "fiber": "1 g",
-            "fat": "8 g",
-            "calories": "170 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 31,
-          "name": "Shrimp & Zucchini Delight #31",
-          "ageGroup": "Adult",
-          "mealType": "Snack",
-          "cookTime": "20 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Shrimp",
-            "Zucchini",
-            "Daphnia",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the shrimp.",
-            "Prepare the zucchini.",
-            "Mix with daphnia.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "21 g",
-            "fiber": "2 g",
-            "fat": "9 g",
-            "calories": "173 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 32,
-          "name": "Bloodworms & Algae Delight #32",
-          "ageGroup": "Senior",
-          "mealType": "Breakfast",
-          "cookTime": "21 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Bloodworms",
-            "Algae",
-            "Duckweed",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the bloodworms.",
-            "Prepare the algae.",
-            "Mix with duckweed.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "22 g",
-            "fiber": "3 g",
-            "fat": "2 g",
-            "calories": "176 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 33,
-          "name": "Spinach & Brine Shrimp Delight #33",
-          "ageGroup": "Baby",
-          "mealType": "Lunch",
-          "cookTime": "22 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Spinach",
-            "Brine Shrimp",
-            "Pumpkin",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the spinach.",
-            "Prepare the brine shrimp.",
-            "Mix with pumpkin.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "23 g",
-            "fiber": "4 g",
-            "fat": "3 g",
-            "calories": "179 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 34,
-          "name": "Zucchini & Daphnia Delight #34",
-          "ageGroup": "Adult",
-          "mealType": "Dinner",
-          "cookTime": "23 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Zucchini",
-            "Daphnia",
-            "Peas",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the zucchini.",
-            "Prepare the daphnia.",
-            "Mix with peas.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "24 g",
-            "fiber": "5 g",
-            "fat": "4 g",
-            "calories": "182 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 35,
-          "name": "Algae & Duckweed Delight #35",
-          "ageGroup": "Senior",
-          "mealType": "Snack",
-          "cookTime": "24 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Algae",
-            "Duckweed",
-            "Shrimp",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the algae.",
-            "Prepare the duckweed.",
-            "Mix with shrimp.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "25 g",
-            "fiber": "6 g",
-            "fat": "5 g",
-            "calories": "185 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 36,
-          "name": "Brine Shrimp & Pumpkin Delight #36",
-          "ageGroup": "Baby",
-          "mealType": "Breakfast",
-          "cookTime": "25 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Brine Shrimp",
-            "Pumpkin",
-            "Bloodworms",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the brine shrimp.",
-            "Prepare the pumpkin.",
-            "Mix with bloodworms.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "26 g",
-            "fiber": "1 g",
-            "fat": "6 g",
-            "calories": "188 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 37,
-          "name": "Daphnia & Peas Delight #37",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "26 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Daphnia",
-            "Peas",
-            "Spinach",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the daphnia.",
-            "Prepare the peas.",
-            "Mix with spinach.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "27 g",
-            "fiber": "2 g",
-            "fat": "7 g",
-            "calories": "191 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 38,
-          "name": "Duckweed & Shrimp Delight #38",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "27 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Duckweed",
-            "Shrimp",
-            "Zucchini",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the duckweed.",
-            "Prepare the shrimp.",
-            "Mix with zucchini.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "28 g",
-            "fiber": "3 g",
-            "fat": "8 g",
-            "calories": "194 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 39,
-          "name": "Pumpkin & Bloodworms Delight #39",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "28 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Pumpkin",
-            "Bloodworms",
-            "Algae",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the pumpkin.",
-            "Prepare the bloodworms.",
-            "Mix with algae.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "29 g",
-            "fiber": "4 g",
-            "fat": "9 g",
-            "calories": "197 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 40,
-          "name": "Peas & Spinach Delight #40",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "29 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Peas",
-            "Spinach",
-            "Brine Shrimp",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the peas.",
-            "Prepare the spinach.",
-            "Mix with brine shrimp.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "10 g",
-            "fiber": "5 g",
-            "fat": "2 g",
-            "calories": "200 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 41,
-          "name": "Shrimp & Zucchini Delight #41",
-          "ageGroup": "Senior",
-          "mealType": "Lunch",
-          "cookTime": "30 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Shrimp",
-            "Zucchini",
-            "Daphnia",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the shrimp.",
-            "Prepare the zucchini.",
-            "Mix with daphnia.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "11 g",
-            "fiber": "6 g",
-            "fat": "3 g",
-            "calories": "203 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 42,
-          "name": "Bloodworms & Algae Delight #42",
-          "ageGroup": "Baby",
-          "mealType": "Dinner",
-          "cookTime": "10 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Bloodworms",
-            "Algae",
-            "Duckweed",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the bloodworms.",
-            "Prepare the algae.",
-            "Mix with duckweed.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "12 g",
-            "fiber": "1 g",
-            "fat": "4 g",
-            "calories": "206 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 43,
-          "name": "Spinach & Brine Shrimp Delight #43",
-          "ageGroup": "Adult",
-          "mealType": "Snack",
-          "cookTime": "11 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Spinach",
-            "Brine Shrimp",
-            "Pumpkin",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the spinach.",
-            "Prepare the brine shrimp.",
-            "Mix with pumpkin.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "13 g",
-            "fiber": "2 g",
-            "fat": "5 g",
-            "calories": "209 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 44,
-          "name": "Zucchini & Daphnia Delight #44",
-          "ageGroup": "Senior",
-          "mealType": "Breakfast",
-          "cookTime": "12 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Zucchini",
-            "Daphnia",
-            "Peas",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the zucchini.",
-            "Prepare the daphnia.",
-            "Mix with peas.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "14 g",
-            "fiber": "3 g",
-            "fat": "6 g",
-            "calories": "212 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 45,
-          "name": "Algae & Duckweed Delight #45",
-          "ageGroup": "Baby",
-          "mealType": "Lunch",
-          "cookTime": "13 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Algae",
-            "Duckweed",
-            "Shrimp",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the algae.",
-            "Prepare the duckweed.",
-            "Mix with shrimp.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "15 g",
-            "fiber": "4 g",
-            "fat": "7 g",
-            "calories": "215 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 46,
-          "name": "Brine Shrimp & Pumpkin Delight #46",
-          "ageGroup": "Adult",
-          "mealType": "Dinner",
-          "cookTime": "14 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Brine Shrimp",
-            "Pumpkin",
-            "Bloodworms",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the brine shrimp.",
-            "Prepare the pumpkin.",
-            "Mix with bloodworms.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "16 g",
-            "fiber": "5 g",
-            "fat": "8 g",
-            "calories": "218 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 47,
-          "name": "Daphnia & Peas Delight #47",
-          "ageGroup": "Senior",
-          "mealType": "Snack",
-          "cookTime": "15 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Daphnia",
-            "Peas",
-            "Spinach",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the daphnia.",
-            "Prepare the peas.",
-            "Mix with spinach.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "17 g",
-            "fiber": "6 g",
-            "fat": "9 g",
-            "calories": "221 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 48,
-          "name": "Duckweed & Shrimp Delight #48",
-          "ageGroup": "Baby",
-          "mealType": "Breakfast",
-          "cookTime": "16 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Duckweed",
-            "Shrimp",
-            "Zucchini",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the duckweed.",
-            "Prepare the shrimp.",
-            "Mix with zucchini.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "18 g",
-            "fiber": "1 g",
-            "fat": "2 g",
-            "calories": "224 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 49,
-          "name": "Pumpkin & Bloodworms Delight #49",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "17 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Pumpkin",
-            "Bloodworms",
-            "Algae",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the pumpkin.",
-            "Prepare the bloodworms.",
-            "Mix with algae.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "19 g",
-            "fiber": "2 g",
-            "fat": "3 g",
-            "calories": "227 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 50,
-          "name": "Peas & Spinach Delight #50",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "18 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Peas",
-            "Spinach",
-            "Brine Shrimp",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the peas.",
-            "Prepare the spinach.",
-            "Mix with brine shrimp.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "20 g",
-            "fiber": "3 g",
-            "fat": "4 g",
-            "calories": "230 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 51,
-          "name": "Shrimp & Zucchini Delight #51",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "19 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Shrimp",
-            "Zucchini",
-            "Daphnia",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the shrimp.",
-            "Prepare the zucchini.",
-            "Mix with daphnia.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "21 g",
-            "fiber": "4 g",
-            "fat": "5 g",
-            "calories": "233 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 52,
-          "name": "Bloodworms & Algae Delight #52",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "20 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Bloodworms",
-            "Algae",
-            "Duckweed",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the bloodworms.",
-            "Prepare the algae.",
-            "Mix with duckweed.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "22 g",
-            "fiber": "5 g",
-            "fat": "6 g",
-            "calories": "236 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 53,
-          "name": "Spinach & Brine Shrimp Delight #53",
-          "ageGroup": "Senior",
-          "mealType": "Lunch",
-          "cookTime": "21 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Spinach",
-            "Brine Shrimp",
-            "Pumpkin",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the spinach.",
-            "Prepare the brine shrimp.",
-            "Mix with pumpkin.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "23 g",
-            "fiber": "6 g",
-            "fat": "7 g",
-            "calories": "239 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 54,
-          "name": "Zucchini & Daphnia Delight #54",
-          "ageGroup": "Baby",
-          "mealType": "Dinner",
-          "cookTime": "22 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Zucchini",
-            "Daphnia",
-            "Peas",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the zucchini.",
-            "Prepare the daphnia.",
-            "Mix with peas.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "24 g",
-            "fiber": "1 g",
-            "fat": "8 g",
-            "calories": "242 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 55,
-          "name": "Algae & Duckweed Delight #55",
-          "ageGroup": "Adult",
-          "mealType": "Snack",
-          "cookTime": "23 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Algae",
-            "Duckweed",
-            "Shrimp",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the algae.",
-            "Prepare the duckweed.",
-            "Mix with shrimp.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "25 g",
-            "fiber": "2 g",
-            "fat": "9 g",
-            "calories": "245 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 56,
-          "name": "Brine Shrimp & Pumpkin Delight #56",
-          "ageGroup": "Senior",
-          "mealType": "Breakfast",
-          "cookTime": "24 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Brine Shrimp",
-            "Pumpkin",
-            "Bloodworms",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the brine shrimp.",
-            "Prepare the pumpkin.",
-            "Mix with bloodworms.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "26 g",
-            "fiber": "3 g",
-            "fat": "2 g",
-            "calories": "248 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 57,
-          "name": "Daphnia & Peas Delight #57",
-          "ageGroup": "Baby",
-          "mealType": "Lunch",
-          "cookTime": "25 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Daphnia",
-            "Peas",
-            "Spinach",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the daphnia.",
-            "Prepare the peas.",
-            "Mix with spinach.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "27 g",
-            "fiber": "4 g",
-            "fat": "3 g",
-            "calories": "251 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 58,
-          "name": "Duckweed & Shrimp Delight #58",
-          "ageGroup": "Adult",
-          "mealType": "Dinner",
-          "cookTime": "26 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Duckweed",
-            "Shrimp",
-            "Zucchini",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the duckweed.",
-            "Prepare the shrimp.",
-            "Mix with zucchini.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "28 g",
-            "fiber": "5 g",
-            "fat": "4 g",
-            "calories": "254 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 59,
-          "name": "Pumpkin & Bloodworms Delight #59",
-          "ageGroup": "Senior",
-          "mealType": "Snack",
-          "cookTime": "27 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Pumpkin",
-            "Bloodworms",
-            "Algae",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the pumpkin.",
-            "Prepare the bloodworms.",
-            "Mix with algae.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "29 g",
-            "fiber": "6 g",
-            "fat": "5 g",
-            "calories": "257 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 60,
-          "name": "Peas & Spinach Delight #60",
-          "ageGroup": "Baby",
-          "mealType": "Breakfast",
-          "cookTime": "28 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Peas",
-            "Spinach",
-            "Brine Shrimp",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the peas.",
-            "Prepare the spinach.",
-            "Mix with brine shrimp.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "10 g",
-            "fiber": "1 g",
-            "fat": "6 g",
-            "calories": "260 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 61,
-          "name": "Shrimp & Zucchini Delight #61",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "29 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Shrimp",
-            "Zucchini",
-            "Daphnia",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the shrimp.",
-            "Prepare the zucchini.",
-            "Mix with daphnia.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "11 g",
-            "fiber": "2 g",
-            "fat": "7 g",
-            "calories": "263 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 62,
-          "name": "Bloodworms & Algae Delight #62",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "30 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Bloodworms",
-            "Algae",
-            "Duckweed",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the bloodworms.",
-            "Prepare the algae.",
-            "Mix with duckweed.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "12 g",
-            "fiber": "3 g",
-            "fat": "8 g",
-            "calories": "266 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 63,
-          "name": "Spinach & Brine Shrimp Delight #63",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "10 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Spinach",
-            "Brine Shrimp",
-            "Pumpkin",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the spinach.",
-            "Prepare the brine shrimp.",
-            "Mix with pumpkin.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "13 g",
-            "fiber": "4 g",
-            "fat": "9 g",
-            "calories": "269 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 64,
-          "name": "Zucchini & Daphnia Delight #64",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "11 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Zucchini",
-            "Daphnia",
-            "Peas",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the zucchini.",
-            "Prepare the daphnia.",
-            "Mix with peas.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "14 g",
-            "fiber": "5 g",
-            "fat": "2 g",
-            "calories": "272 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 65,
-          "name": "Algae & Duckweed Delight #65",
-          "ageGroup": "Senior",
-          "mealType": "Lunch",
-          "cookTime": "12 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Algae",
-            "Duckweed",
-            "Shrimp",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the algae.",
-            "Prepare the duckweed.",
-            "Mix with shrimp.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "15 g",
-            "fiber": "6 g",
-            "fat": "3 g",
-            "calories": "275 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 66,
-          "name": "Brine Shrimp & Pumpkin Delight #66",
-          "ageGroup": "Baby",
-          "mealType": "Dinner",
-          "cookTime": "13 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Brine Shrimp",
-            "Pumpkin",
-            "Bloodworms",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the brine shrimp.",
-            "Prepare the pumpkin.",
-            "Mix with bloodworms.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "16 g",
-            "fiber": "1 g",
-            "fat": "4 g",
-            "calories": "278 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 67,
-          "name": "Daphnia & Peas Delight #67",
-          "ageGroup": "Adult",
-          "mealType": "Snack",
-          "cookTime": "14 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Daphnia",
-            "Peas",
-            "Spinach",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the daphnia.",
-            "Prepare the peas.",
-            "Mix with spinach.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "17 g",
-            "fiber": "2 g",
-            "fat": "5 g",
-            "calories": "281 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 68,
-          "name": "Duckweed & Shrimp Delight #68",
-          "ageGroup": "Senior",
-          "mealType": "Breakfast",
-          "cookTime": "15 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Duckweed",
-            "Shrimp",
-            "Zucchini",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the duckweed.",
-            "Prepare the shrimp.",
-            "Mix with zucchini.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "18 g",
-            "fiber": "3 g",
-            "fat": "6 g",
-            "calories": "284 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 69,
-          "name": "Pumpkin & Bloodworms Delight #69",
-          "ageGroup": "Baby",
-          "mealType": "Lunch",
-          "cookTime": "16 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Pumpkin",
-            "Bloodworms",
-            "Algae",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the pumpkin.",
-            "Prepare the bloodworms.",
-            "Mix with algae.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "19 g",
-            "fiber": "4 g",
-            "fat": "7 g",
-            "calories": "287 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 70,
-          "name": "Peas & Spinach Delight #70",
-          "ageGroup": "Adult",
-          "mealType": "Dinner",
-          "cookTime": "17 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Peas",
-            "Spinach",
-            "Brine Shrimp",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the peas.",
-            "Prepare the spinach.",
-            "Mix with brine shrimp.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "20 g",
-            "fiber": "5 g",
-            "fat": "8 g",
-            "calories": "290 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 71,
-          "name": "Shrimp & Zucchini Delight #71",
-          "ageGroup": "Senior",
-          "mealType": "Snack",
-          "cookTime": "18 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Shrimp",
-            "Zucchini",
-            "Daphnia",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the shrimp.",
-            "Prepare the zucchini.",
-            "Mix with daphnia.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "21 g",
-            "fiber": "6 g",
-            "fat": "9 g",
-            "calories": "293 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 72,
-          "name": "Bloodworms & Algae Delight #72",
-          "ageGroup": "Baby",
-          "mealType": "Breakfast",
-          "cookTime": "19 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Bloodworms",
-            "Algae",
-            "Duckweed",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the bloodworms.",
-            "Prepare the algae.",
-            "Mix with duckweed.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "22 g",
-            "fiber": "1 g",
-            "fat": "2 g",
-            "calories": "296 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 73,
-          "name": "Spinach & Brine Shrimp Delight #73",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "20 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Spinach",
-            "Brine Shrimp",
-            "Pumpkin",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the spinach.",
-            "Prepare the brine shrimp.",
-            "Mix with pumpkin.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "23 g",
-            "fiber": "2 g",
-            "fat": "3 g",
-            "calories": "299 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 74,
-          "name": "Zucchini & Daphnia Delight #74",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "21 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Zucchini",
-            "Daphnia",
-            "Peas",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the zucchini.",
-            "Prepare the daphnia.",
-            "Mix with peas.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "24 g",
-            "fiber": "3 g",
-            "fat": "4 g",
-            "calories": "302 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 75,
-          "name": "Algae & Duckweed Delight #75",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "22 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Algae",
-            "Duckweed",
-            "Shrimp",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the algae.",
-            "Prepare the duckweed.",
-            "Mix with shrimp.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "25 g",
-            "fiber": "4 g",
-            "fat": "5 g",
-            "calories": "305 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 76,
-          "name": "Brine Shrimp & Pumpkin Delight #76",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "23 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Brine Shrimp",
-            "Pumpkin",
-            "Bloodworms",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the brine shrimp.",
-            "Prepare the pumpkin.",
-            "Mix with bloodworms.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "26 g",
-            "fiber": "5 g",
-            "fat": "6 g",
-            "calories": "308 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 77,
-          "name": "Daphnia & Peas Delight #77",
-          "ageGroup": "Senior",
-          "mealType": "Lunch",
-          "cookTime": "24 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Daphnia",
-            "Peas",
-            "Spinach",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the daphnia.",
-            "Prepare the peas.",
-            "Mix with spinach.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "27 g",
-            "fiber": "6 g",
-            "fat": "7 g",
-            "calories": "311 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 78,
-          "name": "Duckweed & Shrimp Delight #78",
-          "ageGroup": "Baby",
-          "mealType": "Dinner",
-          "cookTime": "25 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Duckweed",
-            "Shrimp",
-            "Zucchini",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the duckweed.",
-            "Prepare the shrimp.",
-            "Mix with zucchini.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "28 g",
-            "fiber": "1 g",
-            "fat": "8 g",
-            "calories": "314 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 79,
-          "name": "Pumpkin & Bloodworms Delight #79",
-          "ageGroup": "Adult",
-          "mealType": "Snack",
-          "cookTime": "26 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Pumpkin",
-            "Bloodworms",
-            "Algae",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the pumpkin.",
-            "Prepare the bloodworms.",
-            "Mix with algae.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "29 g",
-            "fiber": "2 g",
-            "fat": "9 g",
-            "calories": "317 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 80,
-          "name": "Peas & Spinach Delight #80",
-          "ageGroup": "Senior",
-          "mealType": "Breakfast",
-          "cookTime": "27 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Peas",
-            "Spinach",
-            "Brine Shrimp",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the peas.",
-            "Prepare the spinach.",
-            "Mix with brine shrimp.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "10 g",
-            "fiber": "3 g",
-            "fat": "2 g",
-            "calories": "320 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 81,
-          "name": "Shrimp & Zucchini Delight #81",
-          "ageGroup": "Baby",
-          "mealType": "Lunch",
-          "cookTime": "28 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Shrimp",
-            "Zucchini",
-            "Daphnia",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the shrimp.",
-            "Prepare the zucchini.",
-            "Mix with daphnia.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "11 g",
-            "fiber": "4 g",
-            "fat": "3 g",
-            "calories": "323 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 82,
-          "name": "Bloodworms & Algae Delight #82",
-          "ageGroup": "Adult",
-          "mealType": "Dinner",
-          "cookTime": "29 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Bloodworms",
-            "Algae",
-            "Duckweed",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the bloodworms.",
-            "Prepare the algae.",
-            "Mix with duckweed.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "12 g",
-            "fiber": "5 g",
-            "fat": "4 g",
-            "calories": "326 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 83,
-          "name": "Spinach & Brine Shrimp Delight #83",
-          "ageGroup": "Senior",
-          "mealType": "Snack",
-          "cookTime": "30 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Spinach",
-            "Brine Shrimp",
-            "Pumpkin",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the spinach.",
-            "Prepare the brine shrimp.",
-            "Mix with pumpkin.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "13 g",
-            "fiber": "6 g",
-            "fat": "5 g",
-            "calories": "329 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 84,
-          "name": "Zucchini & Daphnia Delight #84",
-          "ageGroup": "Baby",
-          "mealType": "Breakfast",
-          "cookTime": "10 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Zucchini",
-            "Daphnia",
-            "Peas",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the zucchini.",
-            "Prepare the daphnia.",
-            "Mix with peas.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "14 g",
-            "fiber": "1 g",
-            "fat": "6 g",
-            "calories": "332 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 85,
-          "name": "Algae & Duckweed Delight #85",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "11 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Algae",
-            "Duckweed",
-            "Shrimp",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the algae.",
-            "Prepare the duckweed.",
-            "Mix with shrimp.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "15 g",
-            "fiber": "2 g",
-            "fat": "7 g",
-            "calories": "335 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 86,
-          "name": "Brine Shrimp & Pumpkin Delight #86",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "12 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Brine Shrimp",
-            "Pumpkin",
-            "Bloodworms",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the brine shrimp.",
-            "Prepare the pumpkin.",
-            "Mix with bloodworms.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "16 g",
-            "fiber": "3 g",
-            "fat": "8 g",
-            "calories": "338 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 87,
-          "name": "Daphnia & Peas Delight #87",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "13 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Daphnia",
-            "Peas",
-            "Spinach",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the daphnia.",
-            "Prepare the peas.",
-            "Mix with spinach.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "17 g",
-            "fiber": "4 g",
-            "fat": "9 g",
-            "calories": "341 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 88,
-          "name": "Duckweed & Shrimp Delight #88",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "14 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Duckweed",
-            "Shrimp",
-            "Zucchini",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the duckweed.",
-            "Prepare the shrimp.",
-            "Mix with zucchini.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "18 g",
-            "fiber": "5 g",
-            "fat": "2 g",
-            "calories": "344 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 89,
-          "name": "Pumpkin & Bloodworms Delight #89",
-          "ageGroup": "Senior",
-          "mealType": "Lunch",
-          "cookTime": "15 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Pumpkin",
-            "Bloodworms",
-            "Algae",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the pumpkin.",
-            "Prepare the bloodworms.",
-            "Mix with algae.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "19 g",
-            "fiber": "6 g",
-            "fat": "3 g",
-            "calories": "347 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 90,
-          "name": "Peas & Spinach Delight #90",
-          "ageGroup": "Baby",
-          "mealType": "Dinner",
-          "cookTime": "16 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Peas",
-            "Spinach",
-            "Brine Shrimp",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the peas.",
-            "Prepare the spinach.",
-            "Mix with brine shrimp.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "20 g",
-            "fiber": "1 g",
-            "fat": "4 g",
-            "calories": "350 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 91,
-          "name": "Shrimp & Zucchini Delight #91",
-          "ageGroup": "Adult",
-          "mealType": "Snack",
-          "cookTime": "17 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Shrimp",
-            "Zucchini",
-            "Daphnia",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the shrimp.",
-            "Prepare the zucchini.",
-            "Mix with daphnia.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "21 g",
-            "fiber": "2 g",
-            "fat": "5 g",
-            "calories": "353 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 92,
-          "name": "Bloodworms & Algae Delight #92",
-          "ageGroup": "Senior",
-          "mealType": "Breakfast",
-          "cookTime": "18 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Bloodworms",
-            "Algae",
-            "Duckweed",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the bloodworms.",
-            "Prepare the algae.",
-            "Mix with duckweed.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "22 g",
-            "fiber": "3 g",
-            "fat": "6 g",
-            "calories": "356 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 93,
-          "name": "Spinach & Brine Shrimp Delight #93",
-          "ageGroup": "Baby",
-          "mealType": "Lunch",
-          "cookTime": "19 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Spinach",
-            "Brine Shrimp",
-            "Pumpkin",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the spinach.",
-            "Prepare the brine shrimp.",
-            "Mix with pumpkin.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "23 g",
-            "fiber": "4 g",
-            "fat": "7 g",
-            "calories": "359 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 94,
-          "name": "Zucchini & Daphnia Delight #94",
-          "ageGroup": "Adult",
-          "mealType": "Dinner",
-          "cookTime": "20 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Zucchini",
-            "Daphnia",
-            "Peas",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the zucchini.",
-            "Prepare the daphnia.",
-            "Mix with peas.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "24 g",
-            "fiber": "5 g",
-            "fat": "8 g",
-            "calories": "362 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 95,
-          "name": "Algae & Duckweed Delight #95",
-          "ageGroup": "Senior",
-          "mealType": "Snack",
-          "cookTime": "21 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Algae",
-            "Duckweed",
-            "Shrimp",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the algae.",
-            "Prepare the duckweed.",
-            "Mix with shrimp.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "25 g",
-            "fiber": "6 g",
-            "fat": "9 g",
-            "calories": "365 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 96,
-          "name": "Brine Shrimp & Pumpkin Delight #96",
-          "ageGroup": "Baby",
-          "mealType": "Breakfast",
-          "cookTime": "22 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Brine Shrimp",
-            "Pumpkin",
-            "Bloodworms",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the brine shrimp.",
-            "Prepare the pumpkin.",
-            "Mix with bloodworms.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "26 g",
-            "fiber": "1 g",
-            "fat": "2 g",
-            "calories": "368 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 97,
-          "name": "Daphnia & Peas Delight #97",
-          "ageGroup": "Adult",
-          "mealType": "Lunch",
-          "cookTime": "23 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Daphnia",
-            "Peas",
-            "Spinach",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the daphnia.",
-            "Prepare the peas.",
-            "Mix with spinach.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "27 g",
-            "fiber": "2 g",
-            "fat": "3 g",
-            "calories": "371 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 98,
-          "name": "Duckweed & Shrimp Delight #98",
-          "ageGroup": "Senior",
-          "mealType": "Dinner",
-          "cookTime": "24 mins",
-          "difficulty": "Medium",
-          "ingredients": [
-            "Duckweed",
-            "Shrimp",
-            "Zucchini",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the duckweed.",
-            "Prepare the shrimp.",
-            "Mix with zucchini.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "28 g",
-            "fiber": "3 g",
-            "fat": "4 g",
-            "calories": "374 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 99,
-          "name": "Pumpkin & Bloodworms Delight #99",
-          "ageGroup": "Baby",
-          "mealType": "Snack",
-          "cookTime": "25 mins",
-          "difficulty": "Hard",
-          "ingredients": [
-            "Pumpkin",
-            "Bloodworms",
-            "Algae",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the pumpkin.",
-            "Prepare the bloodworms.",
-            "Mix with algae.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "29 g",
-            "fiber": "4 g",
-            "fat": "5 g",
-            "calories": "377 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        },
-        {
-          "id": 100,
-          "name": "Peas & Spinach Delight #100",
-          "ageGroup": "Adult",
-          "mealType": "Breakfast",
-          "cookTime": "26 mins",
-          "difficulty": "Easy",
-          "ingredients": [
-            "Peas",
-            "Spinach",
-            "Brine Shrimp",
-            "Fresh Water"
-          ],
-          "steps": [
-            "Wash the peas.",
-            "Prepare the spinach.",
-            "Mix with brine shrimp.",
-            "Serve fresh in suitable portions."
-          ],
-          "nutrition": {
-            "protein": "10 g",
-            "fiber": "5 g",
-            "fat": "6 g",
-            "calories": "380 kcal"
-          },
-          "benefits": [
-            "Supports digestion",
-            "Provides vitamins",
-            "Helps maintain energy"
-          ],
-          "frequency": "1-2 times/week",
-          "vetTip": "Adjust portions according to pet size and consult a veterinarian for special diets."
-        }
-      ]
-    };
-
+    const recipeDB = window.PAWFEED_RECIPES || {};
 
     // ==================== NEW RECIPE DB CRUD & MEAL PLANNER ====================
     let recipeAnimalFilter = 'All';
 
-    function getDeletedRecipes() {
-      return pawCache.deletedRecipes || [];
-    }
-
-    async function saveDeletedRecipes(list) {
-      pawCache.deletedRecipes = list;
-      localStorage.setItem('pawfeed_deleted_recipes', JSON.stringify(list));
-      if (!window.supabaseClient || !currentUser) return;
-      const currentStore = pawCache.recipes || {};
-      currentStore.deletedRecipesList = list;
-      await saveRecipeStore(currentStore);
-    }
-
+    function getDeletedRecipes() { return JSON.parse(localStorage.getItem('pawfeed_deleted_recipes') || '[]'); }
+    function saveDeletedRecipes(list) { localStorage.setItem('pawfeed_deleted_recipes', JSON.stringify(list)); }
     def_custom_recipes = [];
-    function getCustomRecipes() {
-      return pawCache.customRecipes || [];
-    }
+    function getCustomRecipes() { return JSON.parse(localStorage.getItem('pawfeed_custom_recipes') || '[]'); }
+    function saveCustomRecipes(list) { localStorage.setItem('pawfeed_custom_recipes', JSON.stringify(list)); }
+    function getEditedRecipes() { return JSON.parse(localStorage.getItem('pawfeed_edited_recipes') || '{}'); }
+    function saveEditedRecipes(map) { localStorage.setItem('pawfeed_edited_recipes', JSON.stringify(map)); }
 
-    async function saveCustomRecipes(list) {
-      pawCache.customRecipes = list;
-      localStorage.setItem('pawfeed_custom_recipes', JSON.stringify(list));
-      if (!window.supabaseClient || !currentUser) return;
-      const userId = currentUser.id;
-      try {
-        await window.supabaseClient.from('custom_recipes').delete().eq('user_id', userId);
-        if (list.length > 0) {
-          const rows = list.map(r => ({
-            user_id: userId,
-            name: r.name,
-            ingredients: r.ingredients,
-            steps: r.steps,
-            notes: r.notes || ''
-          }));
-          await window.supabaseClient.from('custom_recipes').insert(rows);
-        }
-      } catch (err) {
-        console.error("Error syncing custom recipes to Supabase:", err);
-      }
-    }
-
-    function getEditedRecipes() {
-      return pawCache.editedRecipes || {};
-    }
-
-    async function saveEditedRecipes(map) {
-      pawCache.editedRecipes = map;
-      localStorage.setItem('pawfeed_edited_recipes', JSON.stringify(map));
-      if (!window.supabaseClient || !currentUser) return;
-      const currentStore = pawCache.recipes || {};
-      currentStore.editedRecipesMap = map;
-      await saveRecipeStore(currentStore);
-    }
-
-    function getRecipeFavorites() {
-      return pawCache.recipeFavorites || [];
-    }
-
-    async function saveRecipeFavorites(favs) {
-      pawCache.recipeFavorites = favs;
-      localStorage.setItem('pawfeed_recipe_favorites', JSON.stringify(favs));
-      if (!window.supabaseClient || !currentUser) return;
-      const currentStore = pawCache.recipes || {};
-      currentStore.recipeFavoritesList = favs;
-      await saveRecipeStore(currentStore);
-    }
+    function getRecipeFavorites() { return JSON.parse(localStorage.getItem('pawfeed_recipe_favorites') || '[]'); }
+    function saveRecipeFavorites(favs) { localStorage.setItem('pawfeed_recipe_favorites', JSON.stringify(favs)); }
     function isRecipeFavorite(id) { return getRecipeFavorites().includes(id); }
 
     function toggleRecipeFavorite(id) {
@@ -21191,7 +5890,6 @@ Use emojis and keep under 150 words.`;
       renderHomemadeTab();
     }
 
-    // Override normalizeAndMergeDB to support custom edits, additions, and deletions
     function normalizeAndMergeDB() {
       if (!recipeDB || Object.keys(recipeDB).length === 0) return;
       const petKeys = {
@@ -21303,6 +6001,104 @@ Use emojis and keep under 150 words.`;
       console.log("Recipes merged into HOME_RECIPES. Total after CRUD:", HOME_RECIPES.length);
     }
 
+    // ==================== RECIPE SEARCH AUTOCOMPLETE ====================
+    function onRecipeSearchInput(val) {
+      const search = val.toLowerCase().trim();
+      const clearBtn = document.getElementById('recipeSearchClear');
+      const suggBox = document.getElementById('recipeSuggestions');
+      
+      if (clearBtn) clearBtn.style.display = search ? 'block' : 'none';
+      
+      if (!search || search.length < 2) {
+        if (suggBox) suggBox.style.display = 'none';
+        renderHomemadeTab();
+        return;
+      }
+      
+      // Find matches in HOME_RECIPES
+      const activeIdx = getActivePetIdx();
+      const pet = getPets()[activeIdx] || null;
+      const currentAnimal = recipeAnimalFilter !== 'All' ? recipeAnimalFilter : (pet ? pet.type : 'All');
+      
+      const matches = HOME_RECIPES.filter(r => {
+        const matchesAnimal = currentAnimal === 'All' || r.pet.includes(currentAnimal);
+        if (!matchesAnimal) return false;
+        return r.title.toLowerCase().includes(search) || r.ingredients.join(' ').toLowerCase().includes(search);
+      }).slice(0, 8); // Top 8 suggestions
+      
+      if (matches.length > 0) {
+        suggBox.innerHTML = matches.map(m => `
+          <div style="padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;align-items:center;gap:10px" 
+               onmousedown="selectRecipeSuggestion('${m.title.replace(/'/g, "\\'")}')">
+            <span style="font-size:18px">${m.icon}</span>
+            <div style="flex:1">
+              <div style="font-weight:700;font-size:14px;color:var(--dark)">${m.title}</div>
+              <div style="font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                ${m.ingredients.slice(0,3).join(', ')}...
+              </div>
+            </div>
+            <span style="font-size:12px;color:var(--orange)">↗</span>
+          </div>
+        `).join('');
+        suggBox.style.display = 'block';
+      } else {
+        suggBox.innerHTML = '<div style="padding:12px 14px;font-size:13px;color:var(--muted);text-align:center">No similar recipes found.</div>';
+        suggBox.style.display = 'block';
+      }
+      
+      renderHomemadeTab();
+    }
+    
+    function selectRecipeSuggestion(title) {
+      const input = document.getElementById('recipeSearch');
+      if (input) input.value = title;
+      closeRecipeSuggestions();
+      renderHomemadeTab();
+    }
+    
+    function clearRecipeSearch() {
+      const input = document.getElementById('recipeSearch');
+      if (input) input.value = '';
+      const clearBtn = document.getElementById('recipeSearchClear');
+      if (clearBtn) clearBtn.style.display = 'none';
+      closeRecipeSuggestions();
+      renderHomemadeTab();
+    }
+    
+    function closeRecipeSuggestions() {
+      const suggBox = document.getElementById('recipeSuggestions');
+      if (suggBox) suggBox.style.display = 'none';
+    }
+
+    function toggleRecipeFilters() {
+      const panel = document.getElementById('recipeFilterPanel');
+      const btn = document.getElementById('filterToggleBtn');
+      if (!panel) return;
+      const isHidden = panel.classList.contains('hidden');
+      if (isHidden) {
+        panel.classList.remove('hidden');
+        if (btn) btn.style.background = 'var(--orange)';
+        if (btn) btn.style.color = '#fff';
+        if (btn) btn.style.borderColor = 'var(--orange)';
+      } else {
+        panel.classList.add('hidden');
+        if (btn) btn.style.background = 'var(--card-bg)';
+        if (btn) btn.style.color = 'var(--dark)';
+        if (btn) btn.style.borderColor = 'var(--border)';
+      }
+    }
+
+    function resetRecipeFilters() {
+      const ids = ['recipeCategory', 'recipeVegFilter', 'filterAgeGroup', 'filterDifficulty', 'filterCookTime', 'filterVetApproved'];
+      ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = 'All';
+      });
+      const search = document.getElementById('recipeSearch');
+      if (search) search.value = '';
+      renderHomemadeTab();
+    }
+
     // Override renderHomemadeTab to support multiple filters and search
     function renderHomemadeTab(keepLimit) {
       if (!keepLimit) recipeLimit = 15;
@@ -21332,7 +6128,7 @@ Use emojis and keep under 150 words.`;
             <button class="animal-chip ${recipeAnimalFilter === 'All' ? 'active' : ''}" id="achip-All" onclick="setRecipeAnimalFilter('All')">🐾 All Pets</button>
             <button class="animal-chip ${recipeAnimalFilter === 'Dog' ? 'active' : ''}" id="achip-Dog" onclick="setRecipeAnimalFilter('Dog')">🐶 Dog</button>
             <button class="animal-chip ${recipeAnimalFilter === 'Cat' ? 'active' : ''}" id="achip-Cat" onclick="setRecipeAnimalFilter('Cat')">🐱 Cat</button>
-            <button class="animal-chip ${recipeAnimalFilter === 'Fish' ? 'active' : ''}" id="achip-Fish" onclick="setRecipeAnimalFilter('Fish')">🐟 Fish</button>
+            <button class="animal-chip ${recipeAnimalFilter === 'Hamster' ? 'active' : ''}" id="achip-Hamster" onclick="setRecipeAnimalFilter('Hamster')">🐹 Hamster</button>
             <button class="animal-chip ${recipeAnimalFilter === 'Rabbit' ? 'active' : ''}" id="achip-Rabbit" onclick="setRecipeAnimalFilter('Rabbit')">🐰 Rabbit</button>
             <button class="animal-chip ${recipeAnimalFilter === 'Bird' ? 'active' : ''}" id="achip-Bird" onclick="setRecipeAnimalFilter('Bird')">🐦 Bird</button>
           </div>
@@ -21440,7 +6236,7 @@ Use emojis and keep under 150 words.`;
 
     // Override renderRecipeLibrary to support custom recipe rendering
     function getAnimalSVGBowl(type) {
-      const colors = { Dog: '#FFD5A8', Cat: '#FFCCE0', Fish: '#A8D8EA', Rabbit: '#FFF5B7', Bird: '#B5EAD7' };
+      const colors = { Dog: '#FFD5A8', Cat: '#FFCCE0', Hamster: '#A8D8EA', Rabbit: '#FFF5B7', Bird: '#B5EAD7' };
       const color = colors[type] || '#E0E0E0';
       return `<svg viewBox="0 0 100 100" style="width:40px;height:40px;fill:${color}"><path d="M20 70 Q 50 100, 80 70 L 75 50 Q 50 40, 25 50 Z"/><circle cx="50" cy="30" r="10"/><path d="M50 40 L 50 60" stroke="#FFF" stroke-width="4"/></svg>`;
     }
@@ -21470,18 +6266,17 @@ Use emojis and keep under 150 words.`;
     function renderRecipeCard(r) {
       const isFav = isRecipeFavorite(r.id);
       return `
-        <div class="recipe-card" style="background:var(--card);border-radius:18px;border:1px solid var(--border);overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.02);display:flex;flex-direction:column;position:relative;transition:0.2s">
-          <div class="recipe-image-wrap" style="height:110px;background:var(--bg);display:flex;align-items:center;justify-content:center;position:relative;color:var(--text)">
-            ${r.image ? `<img src="${r.image}" style="width:100%;height:100%;object-fit:cover" />` : getAnimalSVGBowl(r.pet[0] || 'Dog')}
-            <div class="fav-heart-btn" onclick="event.stopPropagation();toggleRecipeFavorite('${r.id}')" style="position:absolute;top:8px;right:8px;background:rgba(255,255,255,0.85);backdrop-filter:blur(4px);width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;box-shadow:0 2px 6px rgba(0,0,0,0.08);color:${isFav ? '#FF6B6B' : '#A0A0A0'}">
-              ${isFav ? '❤️' : '🤍'}
-            </div>
-            ${r.vet ? `<span style="position:absolute;bottom:8px;left:8px;background:#B5EAD7;color:#1A6A4A;font-size:10px;font-weight:900;padding:4px 8px;border-radius:12px">🩺 Vet Approved</span>` : ''}
+        <div class="recipe-card" style="background:var(--card);border-radius:18px;border:1px solid var(--border);overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.02);display:flex;flex-direction:column;position:relative;transition:0.2s;padding:12px">
+          <div class="fav-heart-btn" onclick="event.stopPropagation();toggleRecipeFavorite('${r.id}')" style="position:absolute;top:12px;right:12px;background:var(--bg);width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;box-shadow:0 2px 6px rgba(0,0,0,0.08);color:${isFav ? '#FF6B6B' : '#A0A0A0'};z-index:2">
+            ${isFav ? '❤️' : '🤍'}
           </div>
-          <div style="padding:12px;flex:1;display:flex;flex-direction:column;justify-content:space-between">
+          <div style="flex:1;display:flex;flex-direction:column;justify-content:space-between">
             <div>
-              <div style="font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">${r.pet[0] || 'Dog'} · ${r.cat || 'Recipe'}</div>
-              <h4 style="font-size:14px;font-weight:900;color:var(--dark);margin:4px 0 8px 0;line-height:1.3">${r.title}</h4>
+              <div style="display:flex;gap:4px;margin-bottom:4px;align-items:center">
+                <div style="font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">${r.pet[0] || 'Dog'} · ${r.cat || 'Recipe'}</div>
+                ${r.vet ? `<span style="background:#B5EAD7;color:#1A6A4A;font-size:10px;font-weight:900;padding:2px 6px;border-radius:12px;line-height:1">🩺 Vet</span>` : ''}
+              </div>
+              <h4 style="font-size:14px;font-weight:900;color:var(--dark);margin:0 0 8px 0;line-height:1.3;padding-right:32px">${r.title}</h4>
             </div>
             <div>
               <div style="display:flex;align-items:center;gap:12px;font-size:11px;color:var(--muted);font-weight:700">
@@ -21491,7 +6286,6 @@ Use emojis and keep under 150 words.`;
               <div style="display:flex;gap:4px;margin-top:10px">
                 <button class="primary-btn" onclick="openRecipeDetailModal('${r.id}')" style="padding:6px 8px;font-size:11px;border-radius:8px;margin:0;flex:1">View</button>
                 <button class="secondary-btn" onclick="openRecipeEditModal('${r.id}')" style="padding:6px;font-size:11px;border-radius:8px;margin:0">✏️</button>
-                <button class="secondary-btn" onclick="deleteRecipe('${r.id}')" style="padding:6px;font-size:11px;border-radius:8px;margin:0;background:var(--danger-bg);color:#d64040;border:none">🗑️</button>
               </div>
             </div>
           </div>
@@ -21688,7 +6482,7 @@ Use emojis and keep under 150 words.`;
 
     async function saveWeeklyPlan(plan) {
       pawCache.weeklyPlan = plan;
-      localStorage.setItem('pawfeed_weekly_plan', JSON.stringify(plan));
+      (!USE_SUPABASE_ONLY && localStorage.setItem('pawfeed_weekly_plan', JSON.stringify(plan)));
       if (!window.supabaseClient || !currentUser) return;
       const userId = currentUser.id;
       try {
@@ -21708,25 +6502,43 @@ Use emojis and keep under 150 words.`;
       activePlannerDay = day;
       activePlannerMeal = meal;
 
+      const searchInput = document.getElementById('plannerSearch');
+      if (searchInput) searchInput.value = '';
+
+      filterPlannerRecipes();
+      document.getElementById('plannerModal').classList.remove('hidden');
+    }
+
+    function filterPlannerRecipes() {
       const db = HOME_RECIPES;
       const pets = getPets();
       const pet = pets[getActivePetIdx()];
+      
+      const searchInput = document.getElementById('plannerSearch');
+      const query = (searchInput ? searchInput.value : '').toLowerCase().trim();
 
-      const suitable = db.filter(r => !pet || r.pet.includes(pet.type));
+      const suitable = db.filter(r => {
+        const matchesPet = !pet || r.pet.includes(pet.type);
+        if (!matchesPet) return false;
+        if (!query) return true;
+        return r.title.toLowerCase().includes(query) || r.ingredients.join(' ').toLowerCase().includes(query);
+      });
 
       const box = document.getElementById('plannerSelectBox');
       if (box) {
-        box.innerHTML = suitable.map(r => `
-          <div class="list-item" style="cursor:pointer;padding:10px;border-radius:12px;border:1px solid var(--border);margin-bottom:6px" onclick="assignRecipeToPlan('${r.id}')">
-            <div>
-              <div style="font-weight:900;color:var(--dark)">${r.title}</div>
-              <div style="font-size:11px;color:var(--muted)">${r.pet.join(', ')} · ${r.cat} · ${r.time} mins</div>
+        if (suitable.length > 0) {
+          box.innerHTML = suitable.map(r => `
+            <div class="list-item" style="cursor:pointer;padding:10px;border-radius:12px;border:1px solid var(--border);margin-bottom:6px" onclick="assignRecipeToPlan('${r.id}')">
+              <div>
+                <div style="font-weight:900;color:var(--dark)">${r.title}</div>
+                <div style="font-size:11px;color:var(--muted)">${r.pet.join(', ')} · ${r.cat} · ${r.time} mins</div>
+              </div>
             </div>
-          </div>
-        `).join('');
+          `).join('');
+        } else {
+          box.innerHTML = '<div style="padding:12px;text-align:center;color:var(--muted);font-size:13px">No recipes found.</div>';
+        }
       }
-
-      document.getElementById('plannerModal').classList.remove('hidden');
     }
 
     function assignRecipeToPlan(recipeId) {
@@ -21757,10 +6569,15 @@ Use emojis and keep under 150 words.`;
     }
 
     function autoGenerateWeeklyPlan() {
-      const plan = getWeeklyPlan();
       const pets = getPets();
       const pet = pets[getActivePetIdx()];
-      const suitable = HOME_RECIPES.filter(r => !pet || r.pet.includes(pet.type));
+      if (!pet) {
+        showToast('Please add a pet first to generate a meal plan.');
+        return;
+      }
+      
+      const plan = getWeeklyPlan();
+      const suitable = HOME_RECIPES.filter(r => r.pet.includes(pet.type));
       if (!suitable.length) { showToast('No recipes found for this pet'); return; }
 
       const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -21775,7 +6592,7 @@ Use emojis and keep under 150 words.`;
 
       saveWeeklyPlan(plan);
       renderWeeklyPlan();
-      showToast('AI Meal Plan Generated! 🤖📅');
+      showToast('AI Meal Plan Generated! 🤖🗓️');
     }
 
     function renderWeeklyPlan() {
@@ -21787,7 +6604,7 @@ Use emojis and keep under 150 words.`;
       box.innerHTML = `
         <div class="card" style="margin-top:16px">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-            <h3 style="font-weight:900;color:var(--dark)">📅 Weekly Interactive Meal Planner</h3>
+            <h3 style="font-weight:900;color:var(--dark)">🍽️ Weekly Interactive Meal Planner</h3>
             <div style="display:flex;gap:6px">
               <button class="small-btn" onclick="autoGenerateWeeklyPlan()">🤖 Auto-Plan</button>
               <button class="small-btn" onclick="clearWeeklyPlan()" style="background:var(--danger-bg);color:#d64040">🗑️ Clear</button>
@@ -22056,7 +6873,7 @@ Use emojis and keep under 150 words.`;
         
       if (!parsed) {
         try {
-          const stored = localStorage.getItem('pawDailyChecklist');
+          const stored = (USE_SUPABASE_ONLY ? null : localStorage.getItem('pawDailyChecklist'));
           if (stored) parsed = JSON.parse(stored);
         } catch (e) { }
       }
@@ -22079,7 +6896,7 @@ Use emojis and keep under 150 words.`;
 
     async function saveDailyChecklist(data) {
       pawCache.dailyChecklist = data;
-      localStorage.setItem('pawDailyChecklist', JSON.stringify(data));
+      (!USE_SUPABASE_ONLY && localStorage.setItem('pawDailyChecklist', JSON.stringify(data)));
       if (!window.supabaseClient || !currentUser) return;
       const userId = currentUser.id;
       try {
@@ -22268,7 +7085,7 @@ Use emojis and keep under 150 words.`;
             </div>
           </div>
 
-          <h4 style="font-weight:900; color:var(--dark); margin-bottom:8px; font-size:14px">📅 7-Day Care Activity Trend</h4>
+          <h4 style="font-weight:900; color:var(--dark); margin-bottom:8px; font-size:14px">🗓️ 7-Day Care Activity Trend</h4>
           <div class="weight-chart-wrap" style="padding:10px 0; background:var(--bg); border-radius:14px; border:1px solid var(--border); display:flex; justify-content:space-between; align-items:flex-end; height:110px">
             ${chartHtml}
           </div>
@@ -22284,7 +7101,7 @@ Use emojis and keep under 150 words.`;
 
     async function saveExpenses(expenses) {
       pawCache.expenses = expenses;
-      localStorage.setItem('pawExpenses', JSON.stringify(expenses));
+      (!USE_SUPABASE_ONLY && localStorage.setItem('pawExpenses', JSON.stringify(expenses)));
       if (!window.supabaseClient || !currentUser) return;
       const userId = currentUser.id;
       try {
@@ -22456,24 +7273,16 @@ Use emojis and keep under 150 words.`;
 
     // ==================== FOOD & MEDICINE STOCK TRACKER ====================
     function getStockItems() {
-      const demoStock = [
-        { id: 1, name: 'Premium Puppy Kibble 🥣', type: 'food', quantity: 2500, unit: 'g', threshold: 500, decrementAmount: 100 },
-        { id: 2, name: 'Tuna Wet Cans 🥣', type: 'food', quantity: 8, unit: 'cans', threshold: 2, decrementAmount: 1 },
-        { id: 3, name: 'Deworming Pills 💊', type: 'medicine', quantity: 6, unit: 'pills', threshold: 2, decrementAmount: 1 },
-        { id: 4, name: 'Amoxicillin Syrup 💊', type: 'medicine', quantity: 120, unit: 'ml', threshold: 30, decrementAmount: 5 }
-      ];
-      
       let items = pawCache.stockItems || [];
       if (items.length === 0) {
         try {
-          const stored = localStorage.getItem('pawStock');
+          const stored = (USE_SUPABASE_ONLY ? null : localStorage.getItem('pawStock'));
           if (stored) items = JSON.parse(stored);
         } catch (e) { }
-        if (!items || items.length === 0) {
-          items = demoStock;
-          saveStockItems(items);
-        } else {
+        if (items.length > 0) {
           pawCache.stockItems = items;
+        } else {
+          items = [];
         }
       }
       return items;
@@ -22481,7 +7290,7 @@ Use emojis and keep under 150 words.`;
 
     async function saveStockItems(items) {
       pawCache.stockItems = items;
-      localStorage.setItem('pawStock', JSON.stringify(items));
+      (!USE_SUPABASE_ONLY && localStorage.setItem('pawStock', JSON.stringify(items)));
       if (!window.supabaseClient || !currentUser) return;
       const userId = currentUser.id;
       try {
@@ -22959,5 +7768,54 @@ Use emojis and keep under 150 words.`;
   } catch (e) {
     console.warn('[PawFeed] Startup task reminders sync failed:', e);
   }
+
+  // ── 8. Remote Push Notifications ──────────────────────────────────────────
+  const { PushNotifications } = Capacitor.Plugins;
+  if (PushNotifications) {
+    window.initPushNotifications = async function(userId) {
+      if (!window.supabaseClient) return;
+      
+      try {
+        let permStatus = await PushNotifications.checkPermissions();
+        if (permStatus.receive === 'prompt') {
+          permStatus = await PushNotifications.requestPermissions();
+        }
+        
+        if (permStatus.receive !== 'granted') {
+          console.warn('Push notification permission not granted');
+          return;
+        }
+
+        await PushNotifications.register();
+
+        PushNotifications.addListener('registration', async (token) => {
+          console.log('Push registration success, token: ' + token.value);
+          await window.supabaseClient.from('user_profiles').upsert({
+            id: userId,
+            push_token: token.value
+          });
+        });
+
+        PushNotifications.addListener('registrationError', (error) => {
+          console.error('Error on push registration: ' + JSON.stringify(error));
+        });
+
+        PushNotifications.addListener('pushNotificationReceived', (notification) => {
+          console.log('Push received: ' + JSON.stringify(notification));
+        });
+
+        PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
+          console.log('Push action performed: ' + JSON.stringify(notification));
+        });
+      } catch (e) {
+        console.error('Failed to init push notifications', e);
+      }
+    };
+  } else {
+    window.initPushNotifications = async function() {
+      console.warn('PushNotifications plugin not available');
+    };
+  }
+
 })();
 

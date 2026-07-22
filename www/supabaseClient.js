@@ -5,7 +5,7 @@
 // =================================================================
 
 const SUPABASE_URL = 'https://uwtyjzhlipidqxibtsqo.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_FRpJWPni9WYBKYVTIve_zQ_UJnOFbIF';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3dHlqemhsaXBpZHF4aWJ0c3FvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNDIyMjAsImV4cCI6MjA5NzcxODIyMH0.QCGZksfnBbk0dYyeT_awlzaVYw4eL_D-Z7vP7wsv4tc';
 
 if (typeof supabase === 'undefined' && typeof window.supabase === 'undefined') {
   console.warn("Supabase CDN library was not loaded yet. Make sure to load the CDN script first.");

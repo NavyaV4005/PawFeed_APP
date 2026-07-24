@@ -997,7 +997,7 @@ const USE_SUPABASE_ONLY = true;
         }
       }
 
-      showScreen('loginScreen');
+      showScreen('landingScreen');
     }
 
     // --- REALTIME SUBSCRIPTIONS ---

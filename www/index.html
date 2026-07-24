@@ -21,6 +21,7 @@
   <!-- App styles -->
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="dm-styles.css">
+  <link rel="stylesheet" href="public-styles.css">
 </head>
 
 <body>
@@ -395,108 +396,263 @@
   </div>
 
   <div class="app-shell">
-    <!-- LOGIN -->
-    <div id="loginScreen" class="screen">
-      <div class="brand-box">
-        <div class="logo">🐾</div>
-        <h1>PawFeed</h1>
-        <p class="subtitle">AI-powered pet care — feeding reminders, nutrition, streaks, tracking, and more.</p>
+    <!-- NEW PUBLIC PAGES & AUTH -->
+    
+    <!-- LANDING SCREEN -->
+    <div id="landingScreen" class="screen" style="padding:0; overflow-y:auto; height:100vh;">
+      <nav class="public-navbar">
+        <div class="logo" style="font-size:24px; font-weight:900; color:var(--primary); cursor:pointer;" onclick="showScreen('landingScreen')">🐾 PawFeed</div>
+        <div class="public-nav-links">
+          <a onclick="showScreen('aboutScreen')">About</a>
+          <a onclick="showScreen('featuresScreen')">Features</a>
+          <a onclick="showScreen('faqScreen')">FAQ</a>
+          <a onclick="showScreen('contactScreen')">Contact</a>
+          <button class="secondary-btn" style="margin:0; padding:8px 16px;" onclick="showScreen('loginScreen')">Log In</button>
+          <button class="primary-btn" style="margin:0; padding:8px 16px;" onclick="showScreen('registerScreen')">Get Started</button>
+        </div>
+      </nav>
+      <div class="hero-section">
+        <h1>Smarter Care for Your Best Friend</h1>
+        <p>PawFeed is the all-in-one AI platform for pet parents. Track nutrition, health, schedules, and join a thriving community.</p>
+        <button class="primary-btn" style="width:200px; font-size:16px;" onclick="showScreen('registerScreen')">Start for Free</button>
       </div>
-      <div class="card">
-        <label>Email</label>
-        <input id="loginEmail" type="email" placeholder="Enter email" />
-        <label>Password</label>
-        <div style="position:relative">
-          <input id="loginPassword" type="password" placeholder="Enter password" style="width:100%; padding-right:40px; box-sizing:border-box" />
-          <span onclick="togglePasswordVisibility('loginPassword', this)" style="position:absolute; right:12px; top:50%; transform:translateY(-50%); cursor:pointer; font-size:18px;">👁️</span>
+      <div class="feature-grid">
+        <div class="feature-card">
+          <div style="font-size:40px; margin-bottom:16px;">🤖</div>
+          <h3>AI Health Assistant</h3>
+          <p>Get personalized nutrition advice and weekly digests powered by Claude AI.</p>
         </div>
-        <div style="text-align:right;margin-top:6px">
-          <span onclick="openForgotPassword()"
-            style="font-size:13px;color:var(--orange);font-weight:700;cursor:pointer">Forgot Password?</span>
+        <div class="feature-card">
+          <div style="font-size:40px; margin-bottom:16px;">📸</div>
+          <h3>Smart Vision Scan</h3>
+          <p>Instantly check if a food is safe or identify skin issues just by taking a photo.</p>
         </div>
-        <button class="primary-btn" onclick="loginUser()">Login</button>
-        <div class="or-divider">
-          <span>or continue with</span>
+        <div class="feature-card">
+          <div style="font-size:40px; margin-bottom:16px;">🏠</div>
+          <h3>Household Sharing</h3>
+          <p>Co-parent seamlessly with synchronized schedules, feeding logs, and expenses.</p>
         </div>
-        <button class="google-btn" onclick="handleGoogleSignIn()">
-          <svg width="18" height="18" viewBox="0 0 48 48">
-            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.7 17.74 9.5 24 9.5z"/>
-            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-            <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.2-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-          </svg>
-          Continue with Google
-        </button>
-        <button class="secondary-btn" onclick="showScreen('registerScreen')">Create New Account</button>
+      </div>
+      <footer class="public-footer">
+        <div class="public-footer-links">
+          <span onclick="showScreen('aboutScreen')">About Us</span>
+          <span onclick="showScreen('privacyScreen')">Privacy Policy</span>
+          <span onclick="showScreen('termsScreen')">Terms of Service</span>
+          <span onclick="showScreen('faqScreen')">FAQ</span>
+        </div>
+        <p style="color:#64748B;">© 2026 PawFeed Inc. All rights reserved.</p>
+      </footer>
+    </div>
+
+    <!-- ABOUT SCREEN -->
+    <div id="aboutScreen" class="screen hidden" style="padding:0; overflow-y:auto; height:100vh;">
+      <nav class="public-navbar">
+        <div class="logo" style="font-size:24px; font-weight:900; color:var(--primary); cursor:pointer;" onclick="showScreen('landingScreen')">🐾 PawFeed</div>
+        <button class="primary-btn" style="margin:0; padding:8px 16px; width:auto;" onclick="showScreen('loginScreen')">Log In</button>
+      </nav>
+      <div class="content-page">
+        <h1>About Us</h1>
+        <p>At PawFeed, we believe every pet deserves the best care possible. Founded in 2026, we set out to build the most comprehensive, AI-driven platform for pet parents worldwide.</p>
+        <p>Whether you're tracking daily water intake, managing complex medical records, or looking for community-approved homemade recipes, PawFeed is designed to make pet parenting joyful and stress-free.</p>
+        <button class="secondary-btn" style="width:200px; margin-top:20px;" onclick="showScreen('landingScreen')">← Back Home</button>
       </div>
     </div>
 
-    <!-- FORGOT PASSWORD MODAL -->
-    <div id="forgotModal" class="modal-overlay hidden" style="z-index:500;align-items:center">
-      <div class="modal-box" style="border-radius:28px;max-width:390px;margin:20px">
-        <div class="modal-header">
-          <h2 style="font-size:20px;font-weight:900;color:var(--dark)">🔐 Forgot Password</h2>
-          <div class="modal-close" onclick="closeForgotPassword()">✕</div>
+    <!-- FEATURES SCREEN -->
+    <div id="featuresScreen" class="screen hidden" style="padding:0; overflow-y:auto; height:100vh;">
+      <nav class="public-navbar">
+        <div class="logo" style="font-size:24px; font-weight:900; color:var(--primary); cursor:pointer;" onclick="showScreen('landingScreen')">🐾 PawFeed</div>
+        <button class="primary-btn" style="margin:0; padding:8px 16px; width:auto;" onclick="showScreen('loginScreen')">Log In</button>
+      </nav>
+      <div class="content-page">
+        <h1>Features</h1>
+        <ul>
+          <li style="margin-bottom:12px;"><b>Smart Care Planner:</b> Never miss a walk, feed, or pill.</li>
+          <li style="margin-bottom:12px;"><b>Homemade Food Studio:</b> Vet-approved recipes with built-in calculators.</li>
+          <li style="margin-bottom:12px;"><b>Medical Vault:</b> Store PDFs of lab results and vaccination history securely.</li>
+          <li style="margin-bottom:12px;"><b>PawFeed AI:</b> 24/7 instant advice for your pet's wellness.</li>
+        </ul>
+        <button class="secondary-btn" style="width:200px; margin-top:20px;" onclick="showScreen('landingScreen')">← Back Home</button>
+      </div>
+    </div>
+
+    <!-- FAQ SCREEN -->
+    <div id="faqScreen" class="screen hidden" style="padding:0; overflow-y:auto; height:100vh;">
+      <nav class="public-navbar">
+        <div class="logo" style="font-size:24px; font-weight:900; color:var(--primary); cursor:pointer;" onclick="showScreen('landingScreen')">🐾 PawFeed</div>
+        <button class="primary-btn" style="margin:0; padding:8px 16px; width:auto;" onclick="showScreen('loginScreen')">Log In</button>
+      </nav>
+      <div class="content-page">
+        <h1>Frequently Asked Questions</h1>
+        <h3 style="margin-top:20px;">Is PawFeed free?</h3>
+        <p>Yes! The core features are completely free. We offer premium AI features for advanced analytics.</p>
+        <h3 style="margin-top:20px;">Can I share my account with my partner?</h3>
+        <p>Yes, use our Household Sharing feature in Settings to link accounts securely.</p>
+        <button class="secondary-btn" style="width:200px; margin-top:20px;" onclick="showScreen('landingScreen')">← Back Home</button>
+      </div>
+    </div>
+
+    <!-- CONTACT SCREEN -->
+    <div id="contactScreen" class="screen hidden" style="padding:0; overflow-y:auto; height:100vh;">
+      <nav class="public-navbar">
+        <div class="logo" style="font-size:24px; font-weight:900; color:var(--primary); cursor:pointer;" onclick="showScreen('landingScreen')">🐾 PawFeed</div>
+        <button class="primary-btn" style="margin:0; padding:8px 16px; width:auto;" onclick="showScreen('loginScreen')">Log In</button>
+      </nav>
+      <div class="content-page">
+        <h1>Contact Support</h1>
+        <p>We'd love to hear from you. Fill out the form below and our team will get back to you within 24 hours.</p>
+        <label>Name</label><input type="text" placeholder="Your name">
+        <label>Email</label><input type="email" placeholder="Your email">
+        <label>Message</label><textarea placeholder="How can we help?" rows="4"></textarea>
+        <button class="primary-btn" onclick="alert('Message sent successfully! We will contact you soon.'); showScreen('landingScreen')">Send Message</button>
+        <button class="secondary-btn" style="margin-top:12px;" onclick="showScreen('landingScreen')">Cancel</button>
+      </div>
+    </div>
+
+    <!-- PRIVACY SCREEN -->
+    <div id="privacyScreen" class="screen hidden" style="padding:0; overflow-y:auto; height:100vh;">
+      <nav class="public-navbar">
+        <div class="logo" style="font-size:24px; font-weight:900; color:var(--primary); cursor:pointer;" onclick="showScreen('landingScreen')">🐾 PawFeed</div>
+        <button class="primary-btn" style="margin:0; padding:8px 16px; width:auto;" onclick="showScreen('loginScreen')">Log In</button>
+      </nav>
+      <div class="content-page">
+        <h1>Privacy Policy</h1>
+        <p>Your privacy is our priority. We do not sell your personal or pet data to third parties. All data is securely encrypted using enterprise-grade security via Supabase.</p>
+        <button class="secondary-btn" style="width:200px; margin-top:20px;" onclick="showScreen('landingScreen')">← Back Home</button>
+      </div>
+    </div>
+
+    <!-- TERMS SCREEN -->
+    <div id="termsScreen" class="screen hidden" style="padding:0; overflow-y:auto; height:100vh;">
+      <nav class="public-navbar">
+        <div class="logo" style="font-size:24px; font-weight:900; color:var(--primary); cursor:pointer;" onclick="showScreen('landingScreen')">🐾 PawFeed</div>
+        <button class="primary-btn" style="margin:0; padding:8px 16px; width:auto;" onclick="showScreen('loginScreen')">Log In</button>
+      </nav>
+      <div class="content-page">
+        <h1>Terms of Service</h1>
+        <p>By using PawFeed, you agree to our terms. The AI advice provided is for informational purposes only and does not substitute professional veterinary care.</p>
+        <button class="secondary-btn" style="width:200px; margin-top:20px;" onclick="showScreen('landingScreen')">← Back Home</button>
+      </div>
+    </div>
+
+    <!-- 404 SCREEN -->
+    <div id="error404Screen" class="screen hidden" style="padding:0; overflow-y:auto; height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+      <div style="font-size:80px; margin-bottom:20px;">😿</div>
+      <h1 style="font-size:3rem; margin-bottom:16px;">404 - Page Not Found</h1>
+      <p style="color:var(--muted); font-size:1.2rem; margin-bottom:32px;">Looks like this page ran away!</p>
+      <button class="primary-btn" style="width:250px;" onclick="showScreen('landingScreen')">Return to Home</button>
+    </div>
+
+    <!-- LOGIN SCREEN -->
+    <div id="loginScreen" class="screen hidden" style="padding:0; height:100vh; overflow:hidden;">
+      <div class="auth-split">
+        <div class="auth-left">
+          <div style="font-size:80px; margin-bottom:24px; cursor:pointer;" onclick="showScreen('landingScreen')">🐾</div>
+          <h1 style="font-size:2.5rem; margin-bottom:16px;">Welcome Back to PawFeed</h1>
+          <p style="font-size:1.2rem; opacity:0.9;">Manage your pet's life, diet, and health all in one secure place.</p>
+        </div>
+        <div class="auth-right">
+          <div class="auth-card">
+            <h2 style="text-align:center; font-weight:900; margin-bottom:24px; color:var(--dark);">Log In</h2>
+            <label>Email</label>
+            <input id="loginEmail" type="email" placeholder="Enter email" />
+            <label>Password</label>
+            <div style="position:relative">
+              <input id="loginPassword" type="password" placeholder="Enter password" style="width:100%; padding-right:40px; box-sizing:border-box" />
+              <span onclick="togglePasswordVisibility('loginPassword', this)" style="position:absolute; right:12px; top:50%; transform:translateY(-50%); cursor:pointer; font-size:18px;">👁️</span>
+            </div>
+            <div style="text-align:right;margin-top:6px; margin-bottom:16px;">
+              <span onclick="openForgotPassword()" style="font-size:13px;color:var(--primary);font-weight:700;cursor:pointer">Forgot Password?</span>
+            </div>
+            <button class="primary-btn" onclick="loginUser()">Log In</button>
+            <div class="or-divider" style="margin:24px 0; text-align:center; position:relative;">
+              <span style="background:var(--card); padding:0 10px; color:var(--muted); font-size:13px; position:relative; z-index:1;">or continue with</span>
+              <div style="position:absolute; top:50%; left:0; right:0; height:1px; background:var(--border); z-index:0;"></div>
+            </div>
+            <button class="google-btn" onclick="handleGoogleSignIn()" style="display:flex; align-items:center; justify-content:center; gap:8px; width:100%; padding:12px; border-radius:12px; border:1px solid var(--border); background:var(--input-bg); cursor:pointer; font-weight:600; color:var(--text);">
+              <svg width="18" height="18" viewBox="0 0 48 48">
+                <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.7 17.74 9.5 24 9.5z"/>
+                <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.2-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+              </svg>
+              Continue with Google
+            </button>
+            <button class="secondary-btn" style="margin-top:16px; width:100%;" onclick="showScreen('registerScreen')">Create New Account</button>
+            <button class="secondary-btn" style="margin-top:8px; width:100%; border:none;" onclick="showScreen('landingScreen')">← Back Home</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FORGOT PASSWORD MODAL (Updated) -->
+    <div id="forgotModal" class="modal-overlay hidden" style="z-index:500;align-items:center; backdrop-filter:blur(10px);">
+      <div class="modal-box" style="border-radius:24px;max-width:420px;margin:20px; padding:32px; box-shadow:var(--shadow);">
+        <div class="modal-header" style="margin-bottom:24px;">
+          <h2 style="font-size:22px;font-weight:900;color:var(--dark)">🔐 Reset Password</h2>
+          <div class="modal-close" onclick="closeForgotPassword()" style="cursor:pointer; font-size:20px;">✕</div>
         </div>
         <div id="forgotStep1">
-          <p class="subtitle" style="margin:0 0 14px">Enter your registered email and we'll retrieve your account.</p>
+          <p class="subtitle" style="margin:0 0 20px; line-height:1.5;">Enter your registered email and we'll retrieve your account.</p>
           <label>Email Address</label>
           <input id="forgotEmail" type="email" placeholder="Enter your email" />
-          <button class="primary-btn" onclick="submitForgotPassword()">Find My Account</button>
+          <button class="primary-btn" onclick="submitForgotPassword()" style="margin-top:16px;">Find My Account</button>
         </div>
         <div id="forgotStep2" style="display:none;text-align:center;padding:10px 0">
-          <div style="font-size:48px;margin-bottom:12px">✅</div>
+          <div style="font-size:48px;margin-bottom:16px">✅</div>
           <h3 style="font-weight:900;color:var(--dark);margin-bottom:8px">Account Found!</h3>
-          <p class="subtitle" style="margin:0 0 16px">Your password has been sent to your email. Please check your
-            inbox.</p>
-          <div id="forgotPasswordHint"
-            style="background:var(--pill-bg);border:1px solid var(--border);border-radius:16px;padding:14px;margin-bottom:16px;font-size:14px;color:var(--text);font-weight:700">
-          </div>
+          <p class="subtitle" style="margin:0 0 20px">Your password has been sent to your email. Please check your inbox.</p>
+          <div id="forgotPasswordHint" style="background:var(--pill-bg);border:1px solid var(--border);border-radius:16px;padding:16px;margin-bottom:20px;font-size:14px;color:var(--text);font-weight:700"></div>
           <button class="primary-btn" onclick="closeForgotPassword()">Back to Login</button>
         </div>
         <div id="forgotStep3" style="display:none;text-align:center;padding:10px 0">
-          <div style="font-size:48px;margin-bottom:12px">❌</div>
+          <div style="font-size:48px;margin-bottom:16px">❌</div>
           <h3 style="font-weight:900;color:var(--dark);margin-bottom:8px">No Account Found</h3>
-          <p class="subtitle" style="margin:0 0 16px">No account registered with that email. Try again or create a new
-            account.</p>
+          <p class="subtitle" style="margin:0 0 20px">No account registered with that email. Try again or create a new account.</p>
           <button class="primary-btn" onclick="resetForgotSteps()">Try Again</button>
-          <button class="secondary-btn" onclick="closeForgotPassword();showScreen('registerScreen')">Create
-            Account</button>
+          <button class="secondary-btn" style="margin-top:12px;" onclick="closeForgotPassword();showScreen('registerScreen')">Create Account</button>
         </div>
       </div>
     </div>
 
-    <!-- REGISTER -->
-    <div id="registerScreen" class="screen hidden">
-      <div class="brand-box">
-        <div class="logo">🐶</div>
-        <h1>Create Account</h1>
-        <p class="subtitle">Start your smart pet feeding journey.</p>
-      </div>
-      <div class="card">
-        <label>Full Name</label>
-        <input id="regName" type="text" placeholder="Your name" />
-        <label>Email</label>
-        <input id="regEmail" type="email" placeholder="Your email" />
-        <label>Password</label>
-        <div style="position:relative">
-          <input id="regPassword" type="password" placeholder="Create password" style="width:100%; padding-right:40px; box-sizing:border-box" />
-          <span onclick="togglePasswordVisibility('regPassword', this)" style="position:absolute; right:12px; top:50%; transform:translateY(-50%); cursor:pointer; font-size:18px;">👁️</span>
+    <!-- REGISTER SCREEN -->
+    <div id="registerScreen" class="screen hidden" style="padding:0; height:100vh; overflow:hidden;">
+      <div class="auth-split">
+        <div class="auth-left" style="background: linear-gradient(135deg, var(--teal), var(--blue));">
+          <div style="font-size:80px; margin-bottom:24px; cursor:pointer;" onclick="showScreen('landingScreen')">✨</div>
+          <h1 style="font-size:2.5rem; margin-bottom:16px;">Join the PawFeed Community</h1>
+          <p style="font-size:1.2rem; opacity:0.9;">Start your smart pet feeding journey today.</p>
         </div>
-        <button class="primary-btn" onclick="registerUser()">Register</button>
-        <div class="or-divider">
-          <span>or continue with</span>
+        <div class="auth-right">
+          <div class="auth-card">
+            <h2 style="text-align:center; font-weight:900; margin-bottom:24px; color:var(--dark);">Create Account</h2>
+            <label>Full Name</label>
+            <input id="regName" type="text" placeholder="Your name" />
+            <label>Email</label>
+            <input id="regEmail" type="email" placeholder="Your email" />
+            <label>Password</label>
+            <div style="position:relative">
+              <input id="regPassword" type="password" placeholder="Create password" style="width:100%; padding-right:40px; box-sizing:border-box" />
+              <span onclick="togglePasswordVisibility('regPassword', this)" style="position:absolute; right:12px; top:50%; transform:translateY(-50%); cursor:pointer; font-size:18px;">👁️</span>
+            </div>
+            <button class="primary-btn" style="margin-top:24px;" onclick="registerUser()">Register</button>
+            <div class="or-divider" style="margin:24px 0; text-align:center; position:relative;">
+              <span style="background:var(--card); padding:0 10px; color:var(--muted); font-size:13px; position:relative; z-index:1;">or continue with</span>
+              <div style="position:absolute; top:50%; left:0; right:0; height:1px; background:var(--border); z-index:0;"></div>
+            </div>
+            <button class="google-btn" onclick="handleGoogleSignIn()" style="display:flex; align-items:center; justify-content:center; gap:8px; width:100%; padding:12px; border-radius:12px; border:1px solid var(--border); background:var(--input-bg); cursor:pointer; font-weight:600; color:var(--text);">
+              <svg width="18" height="18" viewBox="0 0 48 48">
+                <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.7 17.74 9.5 24 9.5z"/>
+                <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.2-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+              </svg>
+              Continue with Google
+            </button>
+            <button class="secondary-btn" style="margin-top:16px; width:100%;" onclick="showScreen('loginScreen')">Back to Login</button>
+            <button class="secondary-btn" style="margin-top:8px; width:100%; border:none;" onclick="showScreen('landingScreen')">← Back Home</button>
+          </div>
         </div>
-        <button class="google-btn" onclick="handleGoogleSignIn()">
-          <svg width="18" height="18" viewBox="0 0 48 48">
-            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.7 17.74 9.5 24 9.5z"/>
-            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-            <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.2-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-          </svg>
-          Continue with Google
-        </button>
-        <button class="secondary-btn" onclick="showScreen('loginScreen')">Back to Login</button>
       </div>
     </div>
 

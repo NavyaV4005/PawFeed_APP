@@ -366,16 +366,7 @@ const USE_SUPABASE_ONLY = true;
         }
 
         if (postsRes.data) {
-          pawCache.communityPosts = postsRes.data.map(p => ({
-            id: p.id,
-            user: p.user_id === userId ? (currentUser.user_metadata?.display_name || 'Me') : 'Pet Parent',
-            avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=80&h=80',
-            content: p.content,
-            image: p.image_url,
-            time: p.created_at,
-            likes: 0,
-            comments: []
-          }));
+          pawCache.communityPosts = postsRes.data;
         }
 
         if (cartRes.data) {
@@ -3639,12 +3630,21 @@ const USE_SUPABASE_ONLY = true;
     }
 
     function openCombo(combo, defaultSub) {
-      document.querySelectorAll('#mainApp > .tab-screen').forEach(t => t.classList.add('hidden'));
+      document.querySelectorAll('.tab-screen').forEach(t => t.classList.add('hidden'));
       document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
       const el = document.getElementById('comboTab-' + combo);
       if (el) el.classList.remove('hidden');
       const nav = document.getElementById('nav-combo-' + combo);
       if (nav) nav.classList.add('active');
+      
+      const breadcrumb = document.getElementById('topBreadcrumb');
+      if (breadcrumb) {
+        const titles = {
+          'social': 'Health & Social'
+        };
+        breadcrumb.textContent = titles[combo] || 'Dashboard';
+      }
+      
       switchComboSub(combo, defaultSub);
     }
 

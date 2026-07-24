@@ -966,28 +966,45 @@
 
       <!-- MARKETPLACE TAB -->
       <div id="marketTab" class="screen tab-screen hidden">
-        <h2 style="font-weight:900;color:var(--dark)">🛒 Pet Food Marketplace</h2>
-        <p class="subtitle">Shop for pet food and care items.</p>
-        <div class="card">
-          <label>Filter by Pet Type</label>
-          <select id="marketFilter" onchange="renderMarketplace()">
-            <option value="All">All Pets</option>
-            <option>Dog</option>
-            <option>Cat</option>
-            <option>Rabbit</option>
-            <option>Bird</option>
-            <option>Hamster</option>
-          </select>
+        <div class="dashboard-header-row" style="margin-bottom: 24px;">
+          <div>
+            <h2 style="font-weight:900;color:var(--dark); margin:0;">🛒 Marketplace</h2>
+            <p class="subtitle" style="margin: 4px 0 0 0;">Shop for premium pet food and care items.</p>
+          </div>
         </div>
-        <div id="marketProductsBox"></div>
-        <div class="card">
-          <h3 style="font-weight:900">🧾 Cart</h3>
-          <div id="cartBox"></div>
-          <button class="primary-btn" onclick="checkoutCart()">Place Order</button>
+
+        <div class="dashboard-grid">
+          <!-- LEFT COLUMN (Products) -->
+          <div class="dashboard-main-col">
+            <div class="dashboard-panel" style="margin-bottom: 20px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                <h3 class="section-title" style="margin:0;">Products</h3>
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <label style="margin:0; font-size:14px; color:var(--text);">Filter:</label>
+                  <select id="marketFilter" onchange="renderMarketplace()" style="padding:6px 10px; border-radius:10px; border:1px solid var(--border); background:var(--input-bg);">
+                    <option value="All">All Pets</option>
+                    <option>Dog</option>
+                    <option>Cat</option>
+                    <option>Rabbit</option>
+                    <option>Bird</option>
+                    <option>Hamster</option>
+                  </select>
+                </div>
+              </div>
+              <div id="marketProductsBox" class="products-grid"></div>
+            </div>
+          </div>
+
+          <!-- RIGHT COLUMN (Cart) -->
+          <div class="dashboard-side-col">
+            <div class="dashboard-panel" style="position:sticky; top:90px;">
+              <h3 class="section-title" style="margin-top:0;">🧾 Your Cart</h3>
+              <div id="cartBox" style="margin-top:16px;"></div>
+              <button class="primary-btn" onclick="checkoutCart()" style="width:100%; margin-top:20px;">Secure Checkout</button>
+            </div>
+          </div>
         </div>
       </div>
-
-
 
       <!-- COMPUTER VISION TAB -->
       <div id="visionTab" class="screen tab-screen hidden">

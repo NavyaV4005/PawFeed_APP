@@ -3443,3 +3443,12 @@ body.dark-mode .med-icon-box {
     grid-template-columns: 1fr;
   }
 }
+
+/* ==========================================================
+   MARKETPLACE PRODUCTS GRID
+   ========================================================== */
+.products-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+}

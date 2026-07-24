@@ -281,8 +281,8 @@ const USE_SUPABASE_ONLY = true;
           window.supabaseClient.from('care_tasks').select('*').eq('household_id', currentHouseholdId),
           window.supabaseClient.from('orders').select('*').eq('user_id', userId),
           window.supabaseClient.from('mood_logs').select('*').eq('household_id', currentHouseholdId),
-          window.supabaseClient.from('meds').select('*').eq('household_id', currentHouseholdId),
-          window.supabaseClient.from('vet_logs').select('*').eq('household_id', currentHouseholdId),
+          window.supabaseClient.from('medical_records').select('*').eq('household_id', currentHouseholdId),
+          window.supabaseClient.from('medical_reports').select('*').eq('household_id', currentHouseholdId),
           window.supabaseClient.from('sleep_logs').select('*').eq('household_id', currentHouseholdId),
           window.supabaseClient.from('pet_gallery').select('*').eq('household_id', currentHouseholdId),
           window.supabaseClient.from('weight_history').select('*').eq('household_id', currentHouseholdId),
@@ -366,16 +366,7 @@ const USE_SUPABASE_ONLY = true;
         }
 
         if (postsRes.data) {
-          pawCache.communityPosts = postsRes.data.map(p => ({
-            id: p.id,
-            user: p.user_id === userId ? (currentUser.user_metadata?.display_name || 'Me') : 'Pet Parent',
-            avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=80&h=80',
-            content: p.content,
-            image: p.image_url,
-            time: p.created_at,
-            likes: 0,
-            comments: []
-          }));
+          pawCache.communityPosts = postsRes.data;
         }
 
         if (cartRes.data) {
@@ -411,26 +402,10 @@ const USE_SUPABASE_ONLY = true;
         }
 
         if (medsRes.data) {
-          pawCache.meds = medsRes.data.map(m => ({
-            id: m.id,
-            name: m.name,
-            dosage: m.dosage,
-            frequency: m.frequency,
-            nextDue: m.next_due
-          }));
+          pawCache.medicalRecords = medsRes.data;
         }
-
         if (vetsRes.data) {
-          pawCache.vetLog = vetsRes.data.map(v => {
-            const petIdx = pawCache.pets.findIndex(p => p.id === v.pet_id);
-            return {
-              id: v.id,
-              petIdx: petIdx >= 0 ? petIdx : 0,
-              date: v.date,
-              clinic: v.clinic,
-              notes: v.notes
-            };
-          });
+          pawCache.medicalReports = vetsRes.data;
         }
 
         if (sleepsRes.data) {
@@ -955,13 +930,12 @@ const USE_SUPABASE_ONLY = true;
           if (session) {
             currentUser = session.user;
             if (window.initPushNotifications) window.initPushNotifications(currentUser.id);
+            // Sync with cloud BEFORE showing UI
+            await fetchAllDataFromSupabase();
             loadApp();
             if (s.reminders) startAllReminders();
-            // Sync with cloud in background
-            fetchAllDataFromSupabase().then(() => {
-              refreshAllUI();
-              initCalendar();
-            });
+            refreshAllUI();
+            initCalendar();
             
             // Setup Supabase Realtime for Community Feed
             setupRealtimeSubscriptions();
@@ -979,15 +953,16 @@ const USE_SUPABASE_ONLY = true;
         try {
           currentUser = JSON.parse(storedLocalUser);
           if (window.initPushNotifications) window.initPushNotifications(currentUser.id);
-          loadApp();
-          if (s.reminders) startAllReminders();
           if (window.supabaseClient) {
-            fetchAllDataFromSupabase().then(() => {
-              refreshAllUI();
-              initCalendar();
-            });
+            await fetchAllDataFromSupabase();
+            loadApp();
+            if (s.reminders) startAllReminders();
+            refreshAllUI();
+            initCalendar();
             setupRealtimeSubscriptions();
           } else {
+            loadApp();
+            if (s.reminders) startAllReminders();
             refreshAllUI();
             initCalendar();
           }
@@ -1305,13 +1280,13 @@ const USE_SUPABASE_ONLY = true;
         };
         localStorage.setItem('pawfeedCurrentUser', JSON.stringify(currentUser));
         if (window.initPushNotifications) window.initPushNotifications(currentUser.id);
-        loadApp();
         if (window.supabaseClient) {
-          fetchAllDataFromSupabase().then(() => {
-            refreshAllUI();
-            initCalendar();
-          });
+          await fetchAllDataFromSupabase();
+          loadApp();
+          refreshAllUI();
+          initCalendar();
         } else {
+          loadApp();
           refreshAllUI();
           initCalendar();
         }
@@ -1336,11 +1311,10 @@ const USE_SUPABASE_ONLY = true;
         currentUser = data.user;
         localStorage.setItem('pawfeedCurrentUser', JSON.stringify(currentUser));
         if (window.initPushNotifications) window.initPushNotifications(currentUser.id);
+        await fetchAllDataFromSupabase();
         loadApp();
-        fetchAllDataFromSupabase().then(() => {
-          refreshAllUI();
-          initCalendar();
-        });
+        refreshAllUI();
+        initCalendar();
       } catch (err) {
         showToast('Incorrect email or password.');
       }
@@ -1771,18 +1745,19 @@ const USE_SUPABASE_ONLY = true;
       openTab('home');
     }
 
-    function deletePet(idx) {
-      const pets = getPets();
-      const name = pets[idx]?.name || 'this pet';
-      showConfirm('Remove ' + name + '?', 'All data for ' + name + ' will be removed.', () => {
-        pets.splice(idx, 1);
-        savePets(pets);
-        const activeIdx = getActivePetIdx();
-        if (activeIdx >= pets.length) setActivePetIdx(Math.max(0, pets.length - 1));
-        refreshAllUI();
-        showToast(name + ' removed');
-      });
-    }
+    async function deletePet(idx) {
+        const pets = JSON.parse(JSON.stringify(getPets())); // Deep copy
+        const name = pets[idx]?.name || 'this pet';
+        showConfirm('Remove ' + name + '?', 'All data for ' + name + ' will be removed.', async () => {
+          pets.splice(idx, 1);
+          showToast('Deleting from cloud... ⏳');
+          await savePets(pets);
+          const activeIdx = getActivePetIdx();
+          if (activeIdx >= pets.length) setActivePetIdx(Math.max(0, pets.length - 1));
+          refreshAllUI();
+          showToast(name + ' removed');
+        });
+      }
 
     function setMainPet(idx) {
       setActivePetIdx(idx);
@@ -2250,7 +2225,8 @@ const USE_SUPABASE_ONLY = true;
       });
     }
 
-    function completePlannerTask(taskId, dateStr) {
+    async function completePlannerTask(taskId, dateStr) {
+
       const tasks = getCareTasks();
       const task = tasks.find(t => String(t.id) === String(taskId));
       if (!task) return;
@@ -2302,7 +2278,12 @@ const USE_SUPABASE_ONLY = true;
         task.completed = true;
       }
 
-      saveCareTasks(tasks);
+      await saveCareTasks(tasks);
+        
+        // Ensure the completed column is synced
+        if (window.supabaseClient && task.id && typeof task.id === 'number') {
+           await window.supabaseClient.from('care_tasks').update({ completed: true }).eq('id', task.id);
+        }
       showToast(`Task "${task.title}" completed! ✅`);
 
       // Streak trigger
@@ -2334,7 +2315,8 @@ const USE_SUPABASE_ONLY = true;
       refreshAllUI();
     }
 
-    function uncompletePlannerTask(taskId, dateStr) {
+    async function uncompletePlannerTask(taskId, dateStr) {
+
       const tasks = getCareTasks();
       const task = tasks.find(t => String(t.id) === String(taskId));
       if (!task) return;
@@ -2346,7 +2328,12 @@ const USE_SUPABASE_ONLY = true;
         task.completed = false;
       }
 
-      saveCareTasks(tasks);
+      await saveCareTasks(tasks);
+        
+        // Ensure the completed column is synced
+        if (window.supabaseClient && task.id && typeof task.id === 'number') {
+           await window.supabaseClient.from('care_tasks').update({ completed: false }).eq('id', task.id);
+        }
 
       let log = getLog();
       const idx = log.findIndex(e => e.petIdx === task.petIdx && e.timestamp.slice(0, 10) === dateStr && e.note === `Completed task: ${task.title}`);

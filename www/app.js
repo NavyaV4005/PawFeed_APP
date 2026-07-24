@@ -2590,6 +2590,7 @@ const USE_SUPABASE_ONLY = true;
       updateHomeStats(pets, activeIdx, noPet);
       renderReminderBanner(pets, activeIdx, noPet);
       renderDailyTip();
+      if (typeof renderDashboardMiniChart === 'function') renderDashboardMiniChart(pets, activeIdx, noPet);
 
       // === PHASE 2: Defer heavy tabs to next frame so UI doesn't freeze ===
       requestAnimationFrame(() => {
@@ -8361,3 +8362,62 @@ window.renderRecordsTab = function() {
     renderMedicalReportsBox();
 };
 
+
+
+// ==================== DASHBOARD MINI CHART ====================
+let dashboardMiniChartInstance = null;
+window.renderDashboardMiniChart = function(pets, activeIdx, noPet) {
+  if (typeof Chart === 'undefined') return;
+  const canvas = document.getElementById('dashboardMiniChart');
+  if (!canvas) return;
+  
+  if (noPet || !pets || pets.length === 0) {
+    if (dashboardMiniChartInstance) { dashboardMiniChartInstance.destroy(); dashboardMiniChartInstance = null; }
+    return;
+  }
+
+  const activePet = pets[activeIdx];
+  const ctx = canvas.getContext('2d');
+  if (dashboardMiniChartInstance) { dashboardMiniChartInstance.destroy(); }
+
+  const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  // Dummy data. In a real app this pulls from local DB/Supabase logs.
+  const feedings = [2, 3, 2, 2, 3, 2, 4];
+  const water = [80, 90, 70, 85, 95, 100, 80];
+
+  dashboardMiniChartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: 'Feedings',
+          data: feedings,
+          borderColor: '#FF7A00',
+          backgroundColor: 'rgba(255, 122, 0, 0.1)',
+          tension: 0.4,
+          fill: true
+        },
+        {
+          label: 'Water %',
+          data: water,
+          borderColor: '#3B82F6',
+          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+          tension: 0.4,
+          fill: true
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false }
+      },
+      scales: {
+        x: { display: true, grid: { display: false } },
+        y: { display: false, min: 0 }
+      }
+    }
+  });
+};

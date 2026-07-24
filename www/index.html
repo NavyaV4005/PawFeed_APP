@@ -751,24 +751,44 @@
         </div>
       </div>
 
-      <!-- HOME TAB -->
+      <!-- HOME TAB (SaaS Dashboard Layout) -->
       <div id="homeTab" class="screen tab-screen">
-
-        <!-- GRADIENT HERO CARD -->
-        <div class="hero-card" id="heroCard">
-          <div class="hero-gradient-overlay" id="heroGradientOverlay"></div>
-          <div class="hero-left">
-            <h2 id="welcomeText">Hello!</h2>
-            <p id="todayPlan">Add your pet profile to get a personalized feeding plan.</p>
-            <span class="hero-badge" id="healthBadge">✨ Smart care enabled</span>
+        <div class="dashboard-header-row">
+          <!-- GRADIENT HERO CARD -->
+          <div class="hero-card" id="heroCard" style="flex:1;">
+            <div class="hero-gradient-overlay" id="heroGradientOverlay"></div>
+            <div class="hero-left">
+              <h2 id="welcomeText">Hello!</h2>
+              <p id="todayPlan">Add your pet profile to get a personalized feeding plan.</p>
+              <span class="hero-badge" id="healthBadge">✨ Smart care enabled</span>
+            </div>
+            <div class="hero-right">
+              <div class="hero-avatar-wrap" id="heroAvatarWrap">🐾</div>
+            </div>
           </div>
-          <div class="hero-right">
-            <div class="hero-avatar-wrap" id="heroAvatarWrap">🐾</div>
+          
+          <!-- STATS ROW -->
+          <div class="stats-row" id="homeStatsRow" style="flex:1; margin:0;">
+            <div class="stat-card">
+              <div class="stat-icon">🍽️</div>
+              <div class="stat-val" id="statFeedings">0</div>
+              <div class="stat-lbl">Today's Feeds</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon">💧</div>
+              <div class="stat-val" id="statWater">0%</div>
+              <div class="stat-lbl">Water Goal</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon">😊</div>
+              <div class="stat-val" id="statMood">—</div>
+              <div class="stat-lbl">Last Mood</div>
+            </div>
           </div>
         </div>
 
         <!-- STREAK BANNER -->
-        <div id="streakBanner" class="streak-banner hidden">
+        <div id="streakBanner" class="streak-banner hidden" style="margin-top:20px;">
           <div class="streak-flame">🔥</div>
           <div class="streak-info">
             <h3 id="streakTitle">Feeding Streak!</h3>
@@ -777,55 +797,59 @@
           <div class="streak-count" id="streakCount">0</div>
         </div>
 
+        <div class="dashboard-grid" style="margin-top:24px;">
+          <!-- LEFT COLUMN (Main Data) -->
+          <div class="dashboard-main-col">
+            <div class="dashboard-panel">
+              <div class="panel-header" style="display:flex; justify-content:space-between; align-items:center;">
+                <h3 class="section-title" style="margin:0;">My Pets</h3>
+                <button class="secondary-btn" onclick="openTab('profile')" style="padding:6px 12px; margin:0; font-size:12px;">Manage</button>
+              </div>
+              <div id="petPreview" style="margin-top:16px;"></div>
+            </div>
 
-        <!-- STATS ROW -->
-        <div class="stats-row" id="homeStatsRow">
-          <div class="stat-card">
-            <div class="stat-icon">🍽️</div>
-            <div class="stat-val" id="statFeedings">0</div>
-            <div class="stat-lbl">Today's Feeds</div>
+            <div class="dashboard-panel" style="margin-top:20px;">
+              <h3 class="section-title">Weekly Meal Planner</h3>
+              <div id="weeklyPlanBox" style="margin-top:16px;"></div>
+            </div>
+
+            <div class="dashboard-panel" style="margin-top:20px;">
+              <div class="panel-header" style="display:flex; justify-content:space-between; align-items:center;">
+                <h3 class="section-title" style="margin:0;">Analytics Overview</h3>
+                <button class="secondary-btn" onclick="openTab('tracker')" style="padding:6px 12px; margin:0; font-size:12px;">Full Report</button>
+              </div>
+              <!-- Placeholder for chart or insights -->
+              <div style="background:var(--bg); border-radius:12px; padding:20px; text-align:center; margin-top:16px; border:1px dashed var(--border);">
+                <div style="color:var(--muted); font-size:14px; margin-bottom:12px;">Monthly Activity Trends</div>
+                <canvas id="dashboardMiniChart" height="150"></canvas>
+              </div>
+            </div>
           </div>
-          <div class="stat-card">
-            <div class="stat-icon">💧</div>
-            <div class="stat-val" id="statWater">0%</div>
-            <div class="stat-lbl">Water Goal</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-icon">😊</div>
-            <div class="stat-val" id="statMood">—</div>
-            <div class="stat-lbl">Last Mood</div>
+
+          <!-- RIGHT COLUMN (Widgets & Alerts) -->
+          <div class="dashboard-side-col">
+            <!-- UPCOMING REMINDER BANNER -->
+            <div id="reminderBanner"></div>
+
+            <!-- MISSED MEALS -->
+            <div id="missedMealsSection" class="hidden">
+              <div class="dashboard-panel alert-panel">
+                <h3 class="section-title" style="color:var(--red);">⚠️ Missed Meals Today</h3>
+                <div id="missedMealsBox" style="margin-top:12px;"></div>
+              </div>
+            </div>
+
+            <div class="dashboard-panel" style="margin-top:20px;">
+              <h3 class="section-title">Stock Tracker</h3>
+              <div id="stockTrackerContainer" style="margin-top:16px;"></div>
+            </div>
+
+            <div class="dashboard-panel" style="margin-top:20px;">
+              <h3 class="section-title">Daily Pet Tip</h3>
+              <div id="dailyPetTip" style="margin-top:16px;"></div>
+            </div>
           </div>
         </div>
-
-        <!-- Shortcut to Tracker & Insights -->
-        <div style="text-align: center; margin: 12px 0 16px 0;">
-          <button class="secondary-btn" onclick="openTab('tracker')"
-            style="padding: 10px 16px; border-radius: 14px; font-weight:800; font-size:13px; display:inline-flex; align-items:center; gap:6px; background:var(--pill-bg); color:var(--orange); border:1.5px solid rgba(245,166,35,0.3); width:auto; margin:0 auto; cursor:pointer">
-            📈 View Pet Tracker &amp; Insights
-          </button>
-        </div>
-
-        <!-- UPCOMING REMINDER BANNER -->
-        <div id="reminderBanner"></div>
-
-        <h3 class="section-title">My Pets</h3>
-        <div id="petPreview"></div>
-
-        <!-- MISSED MEALS -->
-        <div id="missedMealsSection" class="hidden">
-          <h3 class="section-title">⚠️ Missed Meals Today</h3>
-          <div id="missedMealsBox"></div>
-        </div>
-
-        <!-- WEEKLY MEAL PLANNER -->
-        <div id="weeklyPlanBox"></div>
-
-        <!-- FOOD & MEDICINE STOCK TRACKER -->
-        <div id="stockTrackerContainer"></div>
-
-        <!-- DAILY PET TIP -->
-        <div id="dailyPetTip"></div>
-
       </div>
 
       <!-- PLAN TAB -->

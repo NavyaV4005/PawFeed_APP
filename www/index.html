@@ -1021,226 +1021,196 @@
       <div id="homemadeTab" class="screen tab-screen hidden">
         <div class="homefood-hero">
           <h2>🍳 Homemade Food Studio</h2>
-          <p>Personalized homemade recipes, weekly nutrition plans, safe ingredient checks, meal quantity, shopping
-            list, timers, favorites, and AI cooking support for all your pets.</p>
+          <p>Personalized homemade recipes, weekly nutrition plans, safe ingredient checks, meal quantity, shopping list, timers, favorites, and AI cooking support.</p>
           <span class="badge">Pro nutrition dashboard</span>
         </div>
 
-        <div id="homemadePetTabs" class="pet-tabs" style="margin-top:14px"></div>
+        <div id="homemadePetTabs" class="pet-tabs" style="margin-top:14px; margin-bottom:20px;"></div>
 
-        <div class="card" style="padding:12px 14px">
-          <!-- Search bar row with filter toggle button -->
-          <div style="display:flex;gap:8px;align-items:center;position:relative">
-            <div style="flex:1;position:relative">
-              <input id="recipeSearch"
-                placeholder="Search recipes..."
-                autocomplete="off"
-                oninput="onRecipeSearchInput(this.value)"
-                onfocus="onRecipeSearchInput(this.value)"
-                onblur="setTimeout(()=>closeRecipeSuggestions(),200)"
-                style="flex:1;margin:0;width:100%;padding-right:32px;font-size:14px" />
-              <!-- Clear button inside search -->
-              <span id="recipeSearchClear" onclick="clearRecipeSearch()" style="display:none;position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:15px;color:var(--muted);cursor:pointer;line-height:1">✕</span>
-              <!-- Autocomplete dropdown -->
-              <div id="recipeSuggestions" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--input-bg);border:1.5px solid var(--input-border);border-radius:14px;z-index:9999;max-height:380px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.13)"></div>
+        <div class="dashboard-grid">
+          <!-- LEFT COLUMN (Recipes & Filters) -->
+          <div class="dashboard-main-col">
+            <div class="dashboard-panel" style="padding:16px 20px; margin-bottom:20px;">
+              <!-- Search bar row with filter toggle button -->
+              <div style="display:flex;gap:12px;align-items:center;position:relative">
+                <div style="flex:1;position:relative">
+                  <input id="recipeSearch" placeholder="Search recipes..." autocomplete="off" oninput="onRecipeSearchInput(this.value)" onfocus="onRecipeSearchInput(this.value)" onblur="setTimeout(()=>closeRecipeSuggestions(),200)" style="flex:1;margin:0;width:100%;padding-right:32px;font-size:14px" />
+                  <span id="recipeSearchClear" onclick="clearRecipeSearch()" style="display:none;position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:15px;color:var(--muted);cursor:pointer;line-height:1">✕</span>
+                  <div id="recipeSuggestions" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--input-bg);border:1.5px solid var(--input-border);border-radius:14px;z-index:9999;max-height:380px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.13)"></div>
+                </div>
+                <button id="filterToggleBtn" onclick="toggleRecipeFilters()" style="background:var(--input-bg);border:1.5px solid var(--input-border);border-radius:12px;padding:10px 14px;cursor:pointer;flex-shrink:0;color:var(--text);transition:all 0.2s;display:flex;align-items:center;justify-content:center" title="Filters">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+                </button>
+              </div>
+
+              <!-- Filter panel (hidden by default) -->
+              <div id="recipeFilterPanel" class="hidden" style="margin-top:16px;display:flex;flex-direction:column;gap:12px">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                  <div>
+                    <label style="margin: 0 0 6px 0">Category</label>
+                    <select id="recipeCategory" onchange="renderHomemadeTab()"><option value="All">All Categories</option><option value="Meal">Main Meal</option><option value="Snack">Treat / Snack</option><option value="Quick">Emergency Quick Meal</option><option value="Allergy">Allergy Friendly</option><option value="Budget">Budget Friendly</option><option value="Seasonal">Seasonal</option></select>
+                  </div>
+                  <div>
+                    <label style="margin: 0 0 6px 0">Diet Type</label>
+                    <select id="recipeVegFilter" onchange="renderHomemadeTab()"><option value="All">All</option><option value="Veg">Veg</option><option value="Non-Veg">Non-Veg</option></select>
+                  </div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                  <div>
+                    <label style="margin: 0 0 6px 0">Age Group</label>
+                    <select id="filterAgeGroup" onchange="renderHomemadeTab()"><option value="All">All Ages</option><option value="Baby">Baby/Puppy</option><option value="Adult">Adult</option><option value="Senior">Senior</option></select>
+                  </div>
+                  <div>
+                    <label style="margin: 0 0 6px 0">Difficulty</label>
+                    <select id="filterDifficulty" onchange="renderHomemadeTab()"><option value="All">All Levels</option><option value="Easy">Easy</option><option value="Medium">Medium</option><option value="Hard">Hard</option></select>
+                  </div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                  <div>
+                    <label style="margin: 0 0 6px 0">Cook Time</label>
+                    <select id="filterCookTime" onchange="renderHomemadeTab()"><option value="All">All Times</option><option value="under15">Under 15 mins</option><option value="15to30">15 to 30 mins</option><option value="over30">Over 30 mins</option></select>
+                  </div>
+                  <div>
+                    <label style="margin: 0 0 6px 0">Vet Approved</label>
+                    <select id="filterVetApproved" onchange="renderHomemadeTab()"><option value="All">All Recipes</option><option value="Approved">🩺 Vet Approved</option></select>
+                  </div>
+                </div>
+                <button class="secondary-btn" onclick="resetRecipeFilters()" style="margin-top:4px; font-size:13px;">✕ Clear All Filters</button>
+              </div>
             </div>
-            <button id="filterToggleBtn" onclick="toggleRecipeFilters()" style="background:var(--input-bg);border:1.5px solid var(--input-border);border-radius:12px;padding:8px 11px;cursor:pointer;flex-shrink:0;color:var(--muted);transition:all 0.2s;display:flex;align-items:center;justify-content:center" title="Filters">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
-            </button>
+
+            <div class="dashboard-panel" style="margin-bottom:20px;">
+              <h3 class="section-title" style="margin-top:0;">🍱 Recipe Library</h3>
+              <div id="recipeLibraryBox"></div>
+            </div>
+            
+            <div class="dashboard-panel">
+              <h3 class="section-title" style="margin-top:0;">⭐ Favorites & Recently Viewed</h3>
+              <div id="recipeMemoryBox"></div>
+            </div>
           </div>
 
-          <!-- Filter panel (hidden by default) -->
-          <div id="recipeFilterPanel" class="hidden" style="margin-top:12px;display:flex;flex-direction:column;gap:10px">
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-              <div>
-                <label style="margin: 0 0 6px 0">Category</label>
-                <select id="recipeCategory" onchange="renderHomemadeTab()">
-                  <option value="All">All Categories</option>
-                  <option value="Meal">Main Meal</option>
-                  <option value="Snack">Treat / Snack</option>
-                  <option value="Quick">Emergency Quick Meal</option>
-                  <option value="Allergy">Allergy Friendly</option>
-                  <option value="Budget">Budget Friendly</option>
-                  <option value="Seasonal">Seasonal</option>
-                </select>
+          <!-- RIGHT COLUMN (Tools & Assistant) -->
+          <div class="dashboard-side-col">
+            <div class="dashboard-panel" style="margin-bottom:20px;">
+              <div class="homefood-tools" style="display:grid; grid-template-columns:1fr; gap:10px;">
+                <div class="homefood-tool" onclick="calculateMealAndWater()"><span>🧮</span><b>Meal Calculator</b><small>Quantity, calories and water.</small></div>
+                <div class="homefood-tool" onclick="startFoodTimer()"><span>⏲️</span><b>Cooking Timer</b><small>Voice-guided step timer.</small></div>
               </div>
-              <div>
-                <label style="margin: 0 0 6px 0">Diet Type</label>
-                <select id="recipeVegFilter" onchange="renderHomemadeTab()">
-                  <option value="All">All</option>
-                  <option value="Veg">Veg</option>
-                  <option value="Non-Veg">Non-Veg</option>
-                </select>
+              <div id="calcResultBox"></div>
+              <div id="timerBox"></div>
+            </div>
+            
+            <div class="dashboard-panel" style="margin-bottom:20px; background:var(--card-2); border: 1.5px dashed var(--blue);">
+              <div class="assistant-mini" style="background:transparent; border:none; padding:0; box-shadow:none;">
+                <b style="font-size:16px;">🍲 AI Food Assistant</b>
+                <p style="font-size:13px;opacity:.8;margin:6px 0">Ask about substitutes, allergies, storage, recipes, or diet plans.</p>
+                <div class="chat-row" style="margin-top:12px;">
+                  <input id="foodAIInput" placeholder="Example: substitute chicken for my cat" onkeydown="if(event.key==='Enter') askFoodAssistant()" style="width:100%;" />
+                  <button class="primary-btn" onclick="askFoodAssistant()" style="margin-left:8px; margin-top:0; width:auto;">➤</button>
+                </div>
+                <div id="foodAIReply" style="font-size:13px;line-height:1.45;margin-top:10px"></div>
               </div>
             </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-              <div>
-                <label style="margin: 0 0 6px 0">Age Group</label>
-                <select id="filterAgeGroup" onchange="renderHomemadeTab()">
-                  <option value="All">All Ages</option>
-                  <option value="Baby">Baby/Puppy</option>
-                  <option value="Adult">Adult</option>
-                  <option value="Senior">Senior</option>
-                </select>
-              </div>
-              <div>
-                <label style="margin: 0 0 6px 0">Difficulty</label>
-                <select id="filterDifficulty" onchange="renderHomemadeTab()">
-                  <option value="All">All Levels</option>
-                  <option value="Easy">Easy</option>
-                  <option value="Medium">Medium</option>
-                  <option value="Hard">Hard</option>
-                </select>
-              </div>
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-              <div>
-                <label style="margin: 0 0 6px 0">Cook Time</label>
-                <select id="filterCookTime" onchange="renderHomemadeTab()">
-                  <option value="All">All Times</option>
-                  <option value="under15">Under 15 mins</option>
-                  <option value="15to30">15 to 30 mins</option>
-                  <option value="over30">Over 30 mins</option>
-                </select>
-              </div>
-              <div>
-                <label style="margin: 0 0 6px 0">Vet Approved</label>
-                <select id="filterVetApproved" onchange="renderHomemadeTab()">
-                  <option value="All">All Recipes</option>
-                  <option value="Approved">🩺 Vet Approved</option>
-                </select>
-              </div>
-            </div>
-            <button onclick="resetRecipeFilters()" style="background:none;border:1px solid var(--border);border-radius:10px;padding:7px;font-size:12px;color:var(--muted);cursor:pointer">✕ Clear All Filters</button>
+            
+            <div id="homemadeDashboard"></div>
           </div>
         </div>
-
-        <div class="homefood-tools">
-          <div class="homefood-tool" onclick="calculateMealAndWater()"><span>🧮</span><b>Meal
-              Calculator</b><small>Quantity, calories and water.</small></div>
-          <div class="homefood-tool" onclick="startFoodTimer()"><span>⏲️</span><b>Cooking Timer</b><small>Voice-guided
-              step timer.</small></div>
-        </div>
-
-        <!-- Meal Calculator Results -->
-        <div id="calcResultBox"></div>
-
-        <!-- Cooking Timer -->
-        <div id="timerBox"></div>
-
-        <div id="homemadeDashboard"></div>
-
-
-        <div class="assistant-mini">
-          <b>🍲 AI Food Assistant</b>
-          <p style="font-size:12px;opacity:.8;margin:6px 0">Ask about substitutes, allergies, storage, recipes, or diet
-            plans.</p>
-          <div class="chat-row">
-            <input id="foodAIInput" placeholder="Example: substitute chicken for my cat"
-              onkeydown="if(event.key==='Enter') askFoodAssistant()" />
-            <button onclick="askFoodAssistant()">➤</button>
-          </div>
-          <div id="foodAIReply" style="font-size:13px;line-height:1.45;margin-top:10px"></div>
-        </div>
-
-
-
-        <div class="section-header">
-          <h3 class="section-title">🍱 Recipe Library</h3>
-        </div>
-        <div id="recipeLibraryBox"></div>
-
-        <h3 class="section-title">⭐ Favorites & Recently Viewed</h3>
-        <div id="recipeMemoryBox"></div>
       </div>
 
       <!-- PROFILE TAB -->
       <div id="profileTab" class="screen tab-screen hidden">
-        <h2 style="font-weight:900;color:var(--dark)">👤 My Profile</h2>
-
-        <!-- User Avatar -->
-        <div class="avatar-upload">
-          <div class="avatar-preview" id="userAvatarPreview"
-            onclick="document.getElementById('userAvatarInput').click()">
-            <span id="userAvatarEmoji">👤</span>
-          </div>
-          <input type="file" id="userAvatarInput" accept="image/*" style="display:none"
-            onchange="handleUserAvatar(event)" />
-          <div class="upload-hint">Tap to change profile photo</div>
+        <div class="dashboard-header-row" style="margin-bottom: 24px;">
+          <h2 style="font-weight:900;color:var(--dark); margin:0;">👤 My Profile</h2>
         </div>
 
-        <div class="card">
-          <label>Your Name</label>
-          <input id="profileName" type="text" />
-          <label>Email</label>
-          <input id="profileEmail" type="email" disabled />
-          <div id="googleBadge" class="hidden" style="margin-bottom:12px;align-items:center;gap:6px;font-size:13px;color:var(--dark);background:var(--pill-bg);padding:8px 12px;border-radius:12px;border:1px solid var(--border);width:fit-content;">
-            <svg width="14" height="14" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.7 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.2-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
-            <strong style="font-weight:900;">Connected with Google</strong>
+        <div class="dashboard-grid">
+          <!-- LEFT COLUMN -->
+          <div class="dashboard-main-col">
+            <h3 class="section-title">🐾 My Pets</h3>
+            <div class="dashboard-panel" style="margin-bottom: 20px;">
+              <div id="petListBox"></div>
+              <button class="primary-btn" onclick="openPetModal(-1)" style="margin-top:12px">+ Add New Pet</button>
+            </div>
+
+            <div id="noPetSection" class="dashboard-panel" style="margin-bottom: 20px;">
+              <div style="display:flex;align-items:center;gap:10px">
+                <input type="checkbox" id="noPetCheck" onchange="toggleNoPet()"
+                  style="width:20px;height:20px;cursor:pointer;accent-color:var(--orange)" />
+                <label style="margin:0;text-transform:none;font-size:14px;color:var(--text);cursor:pointer"
+                  for="noPetCheck">I don't have a pet (browse general tips only)</label>
+              </div>
+            </div>
+
+            <!-- Household Sharing Card -->
+            <div class="dashboard-panel" style="background:var(--card-2); border:1.5px dashed var(--blue); margin-bottom: 20px;">
+              <h3 style="margin-top:0; color:var(--dark);">🏠 Household Sharing</h3>
+              <p class="subtitle" style="margin-bottom:8px">Share your household ID with a co-parent to manage pets together in real-time.</p>
+              <label>Your Household ID</label>
+              <div style="display:flex;gap:8px;margin-bottom:12px;">
+                <input id="householdIdDisplay" type="text" readonly
+                  style="flex:1; background:var(--bg); border:1px solid var(--border); font-family:monospace;" />
+                <button class="secondary-btn" onclick="copyHouseholdId()" style="width:auto;padding:0 12px;">Copy</button>
+              </div>
+              <label>Join a Co-Parent's Household</label>
+              <div style="display:flex;gap:8px;">
+                <input id="joinHouseholdInput" type="text" placeholder="Paste ID here..." style="flex:1;" />
+                <button class="primary-btn" onclick="joinHousehold()" style="width:auto;padding:0 12px;">Join</button>
+              </div>
+            </div>
+            
+            <!-- Expense Tracker -->
+            <div id="expenseTrackerContainer"></div>
           </div>
-          <button class="primary-btn" onclick="saveProfile()">Save Profile</button>
+
+          <!-- RIGHT COLUMN -->
+          <div class="dashboard-side-col">
+            <!-- User Avatar & Info -->
+            <div class="dashboard-panel" style="margin-bottom: 20px; text-align: center;">
+              <div class="avatar-upload" style="margin-bottom: 16px;">
+                <div class="avatar-preview" id="userAvatarPreview" onclick="document.getElementById('userAvatarInput').click()">
+                  <span id="userAvatarEmoji">👤</span>
+                </div>
+                <input type="file" id="userAvatarInput" accept="image/*" style="display:none" onchange="handleUserAvatar(event)" />
+                <div class="upload-hint">Tap to change profile photo</div>
+              </div>
+
+              <div style="text-align:left; margin-top: 16px;">
+                <label>Your Name</label>
+                <input id="profileName" type="text" style="width:100%; margin-bottom:12px;" />
+                <label>Email</label>
+                <input id="profileEmail" type="email" disabled style="width:100%; margin-bottom:12px;" />
+                <div id="googleBadge" class="hidden" style="margin-bottom:12px;align-items:center;gap:6px;font-size:13px;color:var(--dark);background:var(--pill-bg);padding:8px 12px;border-radius:12px;border:1px solid var(--border);width:fit-content; margin-left:auto; margin-right:auto;">
+                  <strong style="font-weight:900;">Connected with Google</strong>
+                </div>
+                <button class="primary-btn" onclick="saveProfile()" style="width:100%;">Save Profile</button>
+              </div>
+            </div>
+
+            <!-- Settings -->
+            <div class="dashboard-panel" style="margin-bottom: 20px;">
+              <h3 class="section-title">Settings</h3>
+              <div class="toggle-wrap">
+                <span class="toggle-label">🔔 Feeding Reminders</span>
+                <button class="toggle-switch" id="reminderToggle" onclick="toggleReminderSetting()"></button>
+              </div>
+              <div class="toggle-wrap">
+                <span class="toggle-label">📊 Show Streaks</span>
+                <button class="toggle-switch on" id="streakToggle" onclick="toggleStreakSetting()"></button>
+              </div>
+            </div>
+
+            <!-- AI Feeding Advice Card -->
+            <div id="aiFeedingAdviceContainer" class="dashboard-panel hidden" style="background:var(--card-2); border: 1.5px dashed var(--blue); margin-bottom: 20px;">
+              <h3 style="font-weight:900;color:var(--dark);margin-bottom:6px">🧬 Smart AI Feeding Advice</h3>
+              <p class="subtitle" style="margin-bottom:12px">Get AI portion suggestions and nutrition tips tailored to your active pet.</p>
+              <button class="primary-btn" onclick="getAIFeedingAdvice()" style="width: 100%;">🧬 Get AI Feeding Advice</button>
+              <div id="aiFeedingAdviceResult" class="hidden" style="margin-top:12px; line-height: 1.6; color: var(--text); font-size: 14px;"></div>
+            </div>
+
+            <button class="danger-btn" style="width:100%; margin-top: 10px;" onclick="logoutUser()">Logout</button>
+          </div>
         </div>
-
-        <!-- Household Sharing Card -->
-        <div class="card" style="background:var(--card-2); border:1.5px dashed var(--blue);">
-          <h3 style="margin-top:0; color:var(--dark);">🏠 Household Sharing</h3>
-          <p class="subtitle" style="margin-bottom:8px">Share your household ID with a co-parent to manage pets together
-            in real-time.</p>
-          <label>Your Household ID</label>
-          <div style="display:flex;gap:8px;margin-bottom:12px;">
-            <input id="householdIdDisplay" type="text" readonly
-              style="flex:1; background:var(--bg); border:1px solid var(--border); font-family:monospace;" />
-            <button class="secondary-btn" onclick="copyHouseholdId()" style="width:auto;padding:0 12px;">Copy</button>
-          </div>
-          <label>Join a Co-Parent's Household</label>
-          <div style="display:flex;gap:8px;">
-            <input id="joinHouseholdInput" type="text" placeholder="Paste ID here..." style="flex:1;" />
-            <button class="primary-btn" onclick="joinHousehold()" style="width:auto;padding:0 12px;">Join</button>
-          </div>
-        </div>
-
-        <!-- Settings -->
-        <div class="card">
-          <div class="toggle-wrap">
-            <span class="toggle-label">🔔 Feeding Reminders</span>
-            <button class="toggle-switch" id="reminderToggle" onclick="toggleReminderSetting()"></button>
-          </div>
-          <div class="toggle-wrap">
-            <span class="toggle-label">📊 Show Streaks</span>
-            <button class="toggle-switch on" id="streakToggle" onclick="toggleStreakSetting()"></button>
-          </div>
-        </div>
-
-        <!-- Expense Tracker -->
-        <div id="expenseTrackerContainer"></div>
-
-        <h3 class="section-title">🐾 My Pets</h3>
-        <div id="petListBox"></div>
-        <button class="primary-btn" onclick="openPetModal(-1)" style="margin-top:4px">+ Add New Pet</button>
-
-        <!-- AI Feeding Advice Card -->
-        <div id="aiFeedingAdviceContainer" class="card hidden"
-          style="margin-top:16px; background:var(--card-2); border: 1.5px dashed var(--blue)">
-          <h3 style="font-weight:900;color:var(--dark);margin-bottom:6px">🧬 Smart AI Feeding Advice</h3>
-          <p class="subtitle" style="margin-bottom:12px">Get AI portion suggestions and nutrition tips tailored to your
-            active pet.</p>
-          <button class="primary-btn" onclick="getAIFeedingAdvice()" style="width: 100%;">🧬 Get AI Feeding
-            Advice</button>
-
-          <div id="aiFeedingAdviceResult" class="hidden"
-            style="margin-top:12px; line-height: 1.6; color: var(--text); font-size: 14px;"></div>
-        </div>
-
-        <div id="noPetSection" class="card" style="margin-top:16px">
-          <div style="display:flex;align-items:center;gap:10px">
-            <input type="checkbox" id="noPetCheck" onchange="toggleNoPet()"
-              style="width:20px;height:20px;cursor:pointer;accent-color:var(--orange)" />
-            <label style="margin:0;text-transform:none;font-size:14px;color:var(--text);cursor:pointer"
-              for="noPetCheck">I don't have a pet (browse general tips only)</label>
-          </div>
-        </div>
-
-        <button class="danger-btn" style="margin-top:16px" onclick="logoutUser()">Logout</button>
       </div>
 
       <!-- CARE PLANNER TAB -->
@@ -1251,81 +1221,89 @@
         <!-- Active Pet Selector -->
         <div id="plannerPetTabs" class="pet-tabs"></div>
 
-        <!-- Calendar Card -->
-        <div class="card">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-            <h3 id="plannerMonthLabel" style="font-weight:900;color:var(--dark)">June 2026</h3>
-            <div style="display:flex;gap:6px">
-              <button onclick="navigatePlannerMonth(-1)" class="small-btn"
-                style="padding:6px 12px;font-size:14px">‹</button>
-              <button onclick="navigatePlannerMonth(1)" class="small-btn"
-                style="padding:6px 12px;font-size:14px">›</button>
+        <div class="dashboard-grid">
+          <!-- LEFT COLUMN (Calendar & Add) -->
+          <div class="dashboard-main-col">
+            <!-- Calendar Card -->
+            <div class="dashboard-panel" style="margin-bottom:20px; overflow:hidden;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+                <h3 id="plannerMonthLabel" style="font-weight:900;color:var(--dark);margin:0;">June 2026</h3>
+                <div style="display:flex;gap:6px">
+                  <button onclick="navigatePlannerMonth(-1)" class="small-btn" style="padding:6px 12px;font-size:14px">‹</button>
+                  <button onclick="navigatePlannerMonth(1)" class="small-btn" style="padding:6px 12px;font-size:14px">›</button>
+                </div>
+              </div>
+              <div id="plannerCalendarGrid" class="planner-calendar-grid"></div>
+            </div>
+
+            <!-- Selected Date Summary & Daily Progress -->
+            <div class="dashboard-panel" style="background:var(--success-bg);border:1px solid var(--teal); margin-bottom:20px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                <b id="selectedDateLabel" style="color:var(--teal);font-size:15px">Monday, June 15, 2026</b>
+                <span id="plannerProgressLabel" style="font-weight:800;color:var(--teal);font-size:13px">0/0 completed</span>
+              </div>
+              <div class="progress-bar-wrap" style="background:rgba(78,205,196,0.15)">
+                <div id="plannerProgressBar" class="progress-bar" style="width:0%;background:var(--teal)"></div>
+              </div>
+            </div>
+
+            <!-- Add Custom Task Card -->
+            <div class="dashboard-panel">
+              <h3 style="font-weight:900;margin-top:0;margin-bottom:12px">➕ Add Care Task</h3>
+              <label>Task Title</label>
+              <div style="display:flex;gap:8px;margin-bottom:10px">
+                <select id="addTaskPreset" onchange="onTaskPresetChange()" style="flex:1">
+                  <option value="">-- Custom Task --</option>
+                  <option value="Feed 🥣">Feed 🥣</option>
+                  <option value="Water 💧">Water 💧</option>
+                  <option value="Walk 🦮">Walk 🦮</option>
+                  <option value="Play 🧸">Play 🧸</option>
+                  <option value="Medicine 💊">Medicine 💊</option>
+                  <option value="Grooming 🧼">Grooming 🧼</option>
+                </select>
+                <input id="addTaskTitle" type="text" placeholder="e.g. Clean cage, Brush teeth" style="flex:1.5" />
+              </div>
+              <label>Scheduled Date & Time</label>
+              <input id="addTaskDateTime" type="datetime-local" style="width:100%; margin-bottom:10px;" />
+              <label>Repeat Options</label>
+              <select id="addTaskRepeat" style="width:100%;">
+                <option value="none">One-time (None)</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+              </select>
+              <div class="toggle-wrap" style="margin-top:14px;padding:4px 0">
+                <span class="toggle-label">🔔 Enable Reminder Notification</span>
+                <button class="toggle-switch on" id="addTaskReminderToggle" onclick="this.classList.toggle('on')"></button>
+              </div>
+              <button class="primary-btn" onclick="addPlannerTask()" style="margin-top:14px; width:100%;">Add to Care Plan</button>
             </div>
           </div>
-          <div id="plannerCalendarGrid" class="planner-calendar-grid"></div>
+
+          <!-- RIGHT COLUMN (Lists) -->
+          <div class="dashboard-side-col">
+            <!-- Tasks Listing Sections -->
+            <div class="dashboard-panel" style="margin-bottom:20px;">
+              <h3 class="section-title" style="margin-top:0;">📋 Today's Tasks</h3>
+              <div id="plannerPendingList"></div>
+            </div>
+
+            <div class="dashboard-panel" style="margin-bottom:20px;">
+              <h3 class="section-title" style="margin-top:0;">✅ Completed Today</h3>
+              <div id="plannerCompletedList"></div>
+            </div>
+
+            <div class="dashboard-panel" style="margin-bottom:20px;">
+              <h3 class="section-title" style="margin-top:0;">🗓️ Upcoming Tasks</h3>
+              <div id="plannerUpcomingList"></div>
+            </div>
+
+            <div class="dashboard-panel">
+              <h3 class="section-title" style="margin-top:0;">📜 Planner History</h3>
+              <div id="plannerHistoryBox" style="margin-top:10px"></div>
+            </div>
+          </div>
         </div>
-
-        <!-- Selected Date Summary & Daily Progress -->
-        <div class="card" style="background:var(--success-bg);border:1px solid var(--teal)">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-            <b id="selectedDateLabel" style="color:var(--teal);font-size:15px">Monday, June 15, 2026</b>
-            <span id="plannerProgressLabel" style="font-weight:800;color:var(--teal);font-size:13px">0/0
-              completed</span>
-          </div>
-          <div class="progress-bar-wrap" style="background:rgba(78,205,196,0.15)">
-            <div id="plannerProgressBar" class="progress-bar" style="width:0%;background:var(--teal)"></div>
-          </div>
-        </div>
-
-        <!-- Add Custom Task Card -->
-        <div class="card">
-          <h3 style="font-weight:900;margin-bottom:12px">➕ Add Care Task</h3>
-
-          <label>Task Title</label>
-          <div style="display:flex;gap:8px;margin-bottom:10px">
-            <select id="addTaskPreset" onchange="onTaskPresetChange()" style="flex:1">
-              <option value="">-- Custom Task --</option>
-              <option value="Feed 🥣">Feed 🥣</option>
-              <option value="Water 💧">Water 💧</option>
-              <option value="Walk 🦮">Walk 🦮</option>
-              <option value="Play 🧸">Play 🧸</option>
-              <option value="Medicine 💊">Medicine 💊</option>
-              <option value="Grooming 🧼">Grooming 🧼</option>
-            </select>
-            <input id="addTaskTitle" type="text" placeholder="e.g. Clean cage, Brush teeth" style="flex:1.5" />
-          </div>
-
-          <label>Scheduled Date & Time</label>
-          <input id="addTaskDateTime" type="datetime-local" />
-
-          <label>Repeat Options</label>
-          <select id="addTaskRepeat">
-            <option value="none">One-time (None)</option>
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-          </select>
-
-          <div class="toggle-wrap" style="margin-top:14px;padding:4px 0">
-            <span class="toggle-label">🔔 Enable Reminder Notification</span>
-            <button class="toggle-switch on" id="addTaskReminderToggle" onclick="this.classList.toggle('on')"></button>
-          </div>
-
-          <button class="primary-btn" onclick="addPlannerTask()" style="margin-top:14px">Add to Care Plan</button>
-        </div>
-
-        <!-- Tasks Listing Sections -->
-        <h3 class="section-title">📋 Today's Tasks</h3>
-        <div id="plannerPendingList"></div>
-
-        <h3 class="section-title">✅ Completed Today</h3>
-        <div id="plannerCompletedList"></div>
-
-        <h3 class="section-title">🗓️ Upcoming Tasks</h3>
-        <div id="plannerUpcomingList"></div>
-
-        <h3 class="section-title">📜 Planner History</h3>
-        <div id="plannerHistoryBox" style="margin-top:10px"></div>
       </div>
 
       <!-- COMBO: SOCIAL + GAME -->
@@ -1351,16 +1329,20 @@
           <div class="combo-sub-tab" id="rsub-reports" onclick="switchRecordsSub('reports')">📄 Reports</div>
         </div>
         
-        <!-- Medical History Sub-tab -->
-        <div id="rinner-history">
-            <button class="btn btn-primary" style="width:100%;margin-bottom:15px;" onclick="openMedicalRecordModal()">+ Add Record</button>
-            <div id="medicalRecordsBox"></div>
-        </div>
-        
-        <!-- Medical Reports Sub-tab -->
-        <div id="rinner-reports" style="display:none;">
-            <button class="btn btn-primary" style="width:100%;margin-bottom:15px;" onclick="openMedicalReportModal()">+ Upload Report</button>
-            <div id="medicalReportsBox"></div>
+        <div class="dashboard-grid" style="margin-top:20px; display:block;">
+          <!-- Medical History Sub-tab -->
+          <div id="rinner-history" class="dashboard-panel">
+              <button class="primary-btn" style="width:auto;margin-bottom:15px;float:right;" onclick="openMedicalRecordModal()">+ Add Record</button>
+              <div style="clear:both;"></div>
+              <div id="medicalRecordsBox"></div>
+          </div>
+          
+          <!-- Medical Reports Sub-tab -->
+          <div id="rinner-reports" class="dashboard-panel" style="display:none;">
+              <button class="primary-btn" style="width:auto;margin-bottom:15px;float:right;" onclick="openMedicalReportModal()">+ Upload Report</button>
+              <div style="clear:both;"></div>
+              <div id="medicalReportsBox"></div>
+          </div>
         </div>
       </div>
     </div>

@@ -521,19 +521,6 @@ const USE_SUPABASE_ONLY = true;
         }
 
 
-        // Complete loading bar
-        const bar = document.getElementById('loadingBar');
-        if (bar) bar.style.width = '100%';
-        if (window._loadingInterval) clearInterval(window._loadingInterval);
-        
-        setTimeout(() => {
-          const loadingScreen = document.getElementById('loadingScreen');
-          if (loadingScreen) {
-            loadingScreen.style.opacity = '0';
-            setTimeout(() => loadingScreen.style.display = 'none', 400);
-          }
-        }, 400);
-        
         // ONE-TIME PURGE OF DUMMY DATA - uses session flag (safe for USE_SUPABASE_ONLY mode)
         if (!_dummyPurgedThisSession && !localStorage.getItem('dummy_purged_v4')) {
           _dummyPurgedThisSession = true;
@@ -943,7 +930,22 @@ const USE_SUPABASE_ONLY = true;
       }
     }
 
-    // ==================== LOADING SCREEN ====================
+    
+      function hideLoadingScreen() {
+        const bar = document.getElementById('loadingBar');
+        if (bar) bar.style.width = '100%';
+        if (window._loadingInterval) clearInterval(window._loadingInterval);
+        
+        setTimeout(() => {
+          const loadingScreen = document.getElementById('loadingScreen');
+          if (loadingScreen) {
+            loadingScreen.style.opacity = '0';
+            setTimeout(() => loadingScreen.style.display = 'none', 400);
+          }
+        }, 400);
+      }
+
+      // ==================== LOADING SCREEN ====================
       window.addEventListener('DOMContentLoaded', function () {
         const bar = document.getElementById('loadingBar');
         let w = 0;
@@ -983,7 +985,8 @@ const USE_SUPABASE_ONLY = true;
             loadApp();
             if (s.reminders) startAllReminders();
             setupRealtimeSubscriptions();
-            return;
+            hideLoadingScreen();
+              return;
           }
         } catch (e) {
           console.error("Failed to restore Supabase session:", e);
@@ -1008,7 +1011,8 @@ const USE_SUPABASE_ONLY = true;
         }
       }
 
-      showScreen('landingScreen');
+      hideLoadingScreen();
+        showScreen('landingScreen');
     }
 
     // --- REALTIME SUBSCRIPTIONS ---
@@ -8174,7 +8178,6 @@ window.saveMedicalRecord = async function() {
         showToast("Record saved successfully ✨");
     }
 }
-};
 
 window.deleteMedicalRecord = async function(id) {
     if (!confirm("Are you sure you want to delete this record?")) return;

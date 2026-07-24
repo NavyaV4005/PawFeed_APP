@@ -521,6 +521,19 @@ const USE_SUPABASE_ONLY = true;
         }
 
 
+        // Complete loading bar
+        const bar = document.getElementById('loadingBar');
+        if (bar) bar.style.width = '100%';
+        if (window._loadingInterval) clearInterval(window._loadingInterval);
+        
+        setTimeout(() => {
+          const loadingScreen = document.getElementById('loadingScreen');
+          if (loadingScreen) {
+            loadingScreen.style.opacity = '0';
+            setTimeout(() => loadingScreen.style.display = 'none', 400);
+          }
+        }, 400);
+        
         // ONE-TIME PURGE OF DUMMY DATA - uses session flag (safe for USE_SUPABASE_ONLY mode)
         if (!_dummyPurgedThisSession && !localStorage.getItem('dummy_purged_v4')) {
           _dummyPurgedThisSession = true;
@@ -931,23 +944,21 @@ const USE_SUPABASE_ONLY = true;
     }
 
     // ==================== LOADING SCREEN ====================
-    window.addEventListener('DOMContentLoaded', function () {
-      const bar = document.getElementById('loadingBar');
-      let w = 0;
-      const iv = setInterval(() => {
-        w += Math.random() * 18 + 6;
-        if (w >= 100) { w = 100; clearInterval(iv); }
-        bar.style.width = w + '%';
-      }, 100);
-      setTimeout(() => {
-        document.getElementById('loadingScreen').style.opacity = '0';
-        document.getElementById('loadingScreen').style.transition = 'opacity 0.4s';
-        setTimeout(() => {
-          document.getElementById('loadingScreen').style.display = 'none';
-          initApp();
-        }, 400);
-      }, 1800);
-    });
+      window.addEventListener('DOMContentLoaded', function () {
+        const bar = document.getElementById('loadingBar');
+        let w = 0;
+        const iv = setInterval(() => {
+          w += Math.random() * 15 + 5;
+          if (w > 85) { w = 85; } // wait at 85% until initApp completes
+          if (bar) bar.style.width = w + '%';
+        }, 150);
+        
+        // Save interval so initApp can clear it
+        window._loadingInterval = iv;
+        
+        // Start init process
+        initApp();
+      });
 
     async function initApp() {
       loadLocalCache();
@@ -5871,31 +5882,11 @@ Use emojis and keep under 150 words.`;
 
 // ── Script block 2: splash/login logic ─────────────────────────────────────
     // Dismiss anime splash and show loading screen
-    function dismissAnimeSplash() {
-      const splash = document.getElementById("animeSplash");
-      const loading = document.getElementById("loadingScreen");
-      if (!splash) return;
-      splash.classList.add("fade-out");
-      setTimeout(() => {
-        splash.style.display = "none";
-        if (loading) {
-          loading.style.display = "flex";
-          // animate loading bar
-          let w = 0;
-          const bar = document.getElementById("loadingBar");
-          const iv = setInterval(() => {
-            w += 8;
-            if (bar) bar.style.width = Math.min(w, 100) + "%";
-            if (w >= 100) clearInterval(iv);
-          }, 80);
-          setTimeout(() => { loading.style.display = "none"; }, 1500);
-        }
-      }, 600);
-    }
+    
 
     // Auto-dismiss splash after 3.5s if user doesn't tap
     window.addEventListener('load', function () {
-      setTimeout(dismissAnimeSplash, 3500);
+      
 
       const loginScreen = document.getElementById("loginScreen");
       const registerScreen = document.getElementById("registerScreen");

@@ -3584,12 +3584,28 @@ const USE_SUPABASE_ONLY = true;
 
     // ==================== TAB NAVIGATION ====================
     function openTab(tab) {
-      document.querySelectorAll('#mainApp > .tab-screen').forEach(t => t.classList.add('hidden'));
+      document.querySelectorAll('.tab-screen').forEach(t => t.classList.add('hidden'));
       document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
       const el = document.getElementById(tab + 'Tab');
       if (el) el.classList.remove('hidden');
       const nav = document.getElementById('nav-' + tab);
       if (nav) nav.classList.add('active');
+      
+      const breadcrumb = document.getElementById('topBreadcrumb');
+      if (breadcrumb) {
+        const titles = {
+          'home': 'Dashboard',
+          'homemade': 'Food Studio',
+          'ai': 'PawFeed AI',
+          'careplanner': 'Care Planner',
+          'profile': 'My Profile',
+          'records': 'Health Records',
+          'combo-social': 'Health & Social',
+          'community': 'Pet Community',
+          'vision': 'Smart Vision Scan'
+        };
+        breadcrumb.innerText = titles[tab] || (tab.charAt(0).toUpperCase() + tab.slice(1));
+      }
 
       if (tab === 'profile') {
         renderGalleryTab();

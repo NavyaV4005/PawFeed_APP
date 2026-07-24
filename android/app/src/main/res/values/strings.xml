@@ -4,4 +4,5 @@
     <string name="title_activity_main">PawFeed</string>
     <string name="package_name">com.pawfeed.app</string>
     <string name="custom_url_scheme">com.pawfeed.app</string>
+    <string name="server_client_id">559620223401-g8vifmtcsa3n63j9tfmsa4468sfnpn32.apps.googleusercontent.com</string>
 </resources>

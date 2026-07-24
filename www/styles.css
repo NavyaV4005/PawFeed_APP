@@ -1,6 +1,7 @@
 /* styles.css — PawFeed Premium Theme: Deep Navy + Gold */
     :root {
       /* Premium Light Mode (Glassmorphic) */
+      --primary:      #FF7A00;
       --bg:           #F4F7FC;
       --card:         rgba(255, 255, 255, 0.7);
       --card-2:       rgba(255, 255, 255, 0.9);
@@ -29,6 +30,7 @@
 
     [data-theme="dark"] {
       /* Premium Deep Navy / Neon Dark Mode */
+      --primary:      #FF8A00;
       --bg:           #0B1120;
       --card:         rgba(30, 41, 59, 0.6);
       --card-2:       rgba(30, 41, 59, 0.85);
@@ -396,6 +398,23 @@
       border: 1.5px solid var(--teal);
       margin-top: 10px;
       border-radius: 16px;
+    }
+
+    .google-btn {
+      width: 100%;
+      background: var(--card-2);
+      color: var(--text-color);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      margin-top: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      padding: 14px 20px;
+      cursor: pointer;
     }
 
     .small-btn {
@@ -869,13 +888,16 @@
       background: white;
       color: var(--dark);
       border-bottom-left-radius: 4px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+      border: 1px solid rgba(0,0,0,0.05);
     }
 
     .user-msg {
-      background: var(--teal);
-      color: #0F1B2D;
+      background: linear-gradient(135deg, var(--purple), var(--blue));
+      color: white;
       margin-left: auto;
       border-bottom-right-radius: 4px;
+      box-shadow: 0 4px 10px rgba(139, 92, 246, 0.2);
     }
 
     .typing-msg {
@@ -891,13 +913,13 @@
     }
 
     .chat-row input {
-      background: rgba(255, 255, 255, 0.12);
-      border: 1.5px solid rgba(255, 255, 255, 0.2);
-      color: white;
+      background: var(--input-bg);
+      border: 1.5px solid var(--input-border);
+      color: var(--text);
     }
 
     .chat-row input::placeholder {
-      color: rgba(255, 255, 255, 0.5);
+      color: var(--muted);
     }
 
     .chat-row input:focus {
@@ -907,9 +929,20 @@
 
     .chat-row button {
       width: 52px;
-      background: #B5EAD7;
-      color: #1A6A4A;
-      border-radius: 12px;
+      background: linear-gradient(135deg, var(--purple), var(--blue));
+      color: white;
+      border-radius: 16px;
+      box-shadow: 0 4px 10px rgba(139, 92, 246, 0.2);
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      transition: transform 0.2s;
+    }
+    
+    .chat-row button:active {
+      transform: scale(0.95);
     }
 
     /* DANGER / SUCCESS */
@@ -3127,3 +3160,69 @@
       background: #0F1B2D;
     }
 
+
+/* Pet Records Premium Styles */
+.med-record-card {
+    background: linear-gradient(145deg, var(--card) 0%, var(--bg) 100%);
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 14px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    border: 1px solid var(--border);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+}
+
+.med-record-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
+}
+
+.med-record-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; width: 4px; height: 100%;
+    background: linear-gradient(to bottom, var(--primary), var(--blue));
+}
+
+.med-report-card {
+    background: rgba(255, 255, 255, 0.6);
+    backdrop-filter: blur(10px);
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 14px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.2s ease;
+}
+
+body.dark-mode .med-report-card {
+    background: rgba(40, 40, 40, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.med-report-card:hover {
+    transform: scale(1.02);
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.1);
+}
+
+.med-icon-box {
+    font-size: 1.8rem;
+    background: linear-gradient(135deg, var(--pill-bg) 0%, var(--bg) 100%);
+    padding: 10px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: inset 0 2px 4px rgba(255,255,255,0.5);
+    border: 1px solid var(--border);
+}
+
+body.dark-mode .med-icon-box {
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+}

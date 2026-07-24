@@ -24513,8 +24513,15 @@ Use emojis and keep under 150 words.`
       html += `
           </div>
 
-          <div style="background:var(--bg); border:1px solid var(--border); padding:14px; border-radius:16px">
-            <h4 style="font-weight:900; margin-bottom:10px; font-size:14px; color:var(--dark)">➕ Add Stock Item</h4>
+          <button id="toggleStockFormBtn" onclick="document.getElementById('addStockFormDiv').style.display='block'; this.style.display='none';" style="width:100%; padding:10px; margin-bottom:10px; background:var(--bg); border:1px dashed var(--purple); color:var(--purple); border-radius:12px; font-weight:800; font-size:13px; cursor:pointer;">
+            + Add Stock Item
+          </button>
+
+          <div id="addStockFormDiv" style="display:none; background:var(--bg); border:1px solid var(--border); padding:14px; border-radius:16px; margin-bottom:10px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+              <h4 style="font-weight:900; font-size:14px; color:var(--dark); margin:0;">➕ Add Stock Item</h4>
+              <button onclick="document.getElementById('addStockFormDiv').style.display='none'; document.getElementById('toggleStockFormBtn').style.display='block';" style="background:none; border:none; font-size:16px; color:var(--muted); cursor:pointer;">✕</button>
+            </div>
             
             <div style="margin-bottom:10px">
               <label style="font-size:11px; margin-bottom:4px">Item Name</label>

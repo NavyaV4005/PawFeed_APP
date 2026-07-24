@@ -13,3 +13,60 @@ if (typeof supabase === 'undefined' && typeof window.supabase === 'undefined') {
 
 const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 window.supabaseClient = supabaseClient;
+
+// ==================== GOOGLE AUTH ====================
+async function signInWithGoogle() {
+  if (!supabaseClient) throw new Error("Supabase client not initialized.");
+
+  // Capacitor Native
+  if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+    try {
+      if (window.Capacitor.Plugins.GoogleAuth) {
+         await window.Capacitor.Plugins.GoogleAuth.initialize();
+      }
+      const googleUser = await window.Capacitor.Plugins.GoogleAuth.signIn();
+      if (!googleUser.authentication.idToken) {
+        throw new Error("No ID token returned from Google.");
+      }
+      const { data, error } = await supabaseClient.auth.signInWithIdToken({
+        provider: 'google',
+        token: googleUser.authentication.idToken
+      });
+      if (error) throw error;
+      return data;
+    } catch (err) {
+      console.error("Google native sign-in error:", err);
+      alert("Native Auth Error: " + (err.message || JSON.stringify(err)));
+      throw err;
+    }
+  } else {
+    // Web Browser
+    const { data, error } = await supabaseClient.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin + window.location.pathname
+      }
+    });
+    if (error) throw error;
+    return data;
+  }
+}
+
+async function handleAuthCallback() {
+  if (!supabaseClient) return;
+  const hash = window.location.hash;
+  const search = window.location.search;
+  
+  if (hash.includes('access_token=') || search.includes('code=')) {
+    const { data, error } = await supabaseClient.auth.getSessionFromUrl({ storeSession: true });
+    if (error) {
+      console.error("Error parsing auth callback:", error);
+    }
+  }
+}
+
+window.signInWithGoogle = signInWithGoogle;
+window.handleAuthCallback = handleAuthCallback;
+
+// Call it immediately so it intercepts the redirect before the app fully initializes
+handleAuthCallback();

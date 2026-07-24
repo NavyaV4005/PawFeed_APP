@@ -8,6 +8,11 @@
     "androidScheme": "http"
   },
   "plugins": {
+    "GoogleAuth": {
+      "scopes": ["profile", "email"],
+      "serverClientId": "559620223401-g8vifmtcsa3n63j9tfmsa4468sfnpn32.apps.googleusercontent.com",
+      "forceCodeForRefreshToken": true
+    },
     "SplashScreen": {
       "launchShowDuration": 2000,
       "launchAutoHide": false,

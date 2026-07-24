@@ -1,5 +1,5 @@
 // app.js — All JavaScript from pawfeed00.html. Capacitor bridge appended below.
-const USE_SUPABASE_ONLY = false;
+const USE_SUPABASE_ONLY = true;
 
     window.togglePasswordVisibility = function(inputId, iconElement) {
       const input = document.getElementById(inputId);
@@ -170,8 +170,8 @@ const USE_SUPABASE_ONLY = false;
     }
 
     // To test locally with your node server, uncomment the localhost line below:
-    const API_BASE_URL = 'http://localhost:5000';
-    // const API_BASE_URL = 'https://pawfeedmobile.onrender.com';
+    // const API_BASE_URL = 'http://localhost:5000';
+    const API_BASE_URL = 'https://pawfeedmobile.onrender.com';
     let currentUser = null;
     let currentHouseholdId = null;
     let activePlanPet = 0;
@@ -213,7 +213,7 @@ const USE_SUPABASE_ONLY = false;
       try {
         // Clear all local storage data once for v5 to wipe any lingering dummy pets
         if (!localStorage.getItem('dummy_purged_v5')) {
-          const keys = ['pawPets', 'pawLog', 'pawStock', 'pawSettings', 'pawActivePet', 'pawExpenses', 'pawCart', 'pawScanHistory', 'pawOrders', 'pawRecipeFavorites', 'pawCustomRecipes', 'pawMoodLog', 'pawMeds', 'pawVetLog', 'pawSleepLog', 'pawWeightHistory', 'pawGallery', 'pawRecipeMemory', 'pawWeeklyPlan'];
+          const keys = ['pawPets', 'pawLog', 'pawStock', 'pawSettings', 'pawActivePet', 'pawExpenses', 'pawCart', 'pawScanHistory', 'pawOrders', 'pawRecipeFavorites', 'pawCustomRecipes', 'pawMoodLog', 'pawMeds', 'pawVetLog', 'pawSleepLog', 'pawWeightHistory', 'pawGallery', 'pawRecipeMemory', 'pawWeeklyPlan', 'pawDailyChecklist'];
           keys.forEach(k => localStorage.removeItem(k));
           localStorage.setItem('dummy_purged_v5', 'true');
         }
@@ -234,10 +234,15 @@ const USE_SUPABASE_ONLY = false;
         pawCache.sleepLog = JSON.parse((USE_SUPABASE_ONLY ? null : localStorage.getItem('pawSleepLog')) || '[]');
         pawCache.weightHistory = JSON.parse((USE_SUPABASE_ONLY ? null : localStorage.getItem('pawWeightHistory')) || '{}');
         pawCache.gallery = JSON.parse((USE_SUPABASE_ONLY ? null : localStorage.getItem('pawGallery')) || '{}');
+        
         const memory = JSON.parse((USE_SUPABASE_ONLY ? null : localStorage.getItem('pawRecipeMemory')) || 'null');
         if (memory) pawCache.recipes = memory;
+        
         const weekly = JSON.parse((USE_SUPABASE_ONLY ? null : localStorage.getItem('pawWeeklyPlan')) || 'null');
         if (weekly) pawCache.weeklyPlan = weekly;
+        
+        const checklist = JSON.parse((USE_SUPABASE_ONLY ? null : localStorage.getItem('pawDailyChecklist')) || 'null');
+        if (checklist) pawCache.dailyChecklist = checklist;
       } catch (err) {
         console.error("Error loading local cache:", err);
       }
@@ -266,25 +271,25 @@ const USE_SUPABASE_ONLY = false;
           petsRes, logsRes, stockRes, expensesRes, postsRes, cartRes, scansRes, tasksRes, ordersRes,
           moodsRes, medsRes, vetsRes, sleepsRes, galleryRes, weightsRes, recipesRes
         ] = await Promise.all([
-          window.supabaseClient.from('pets').select('*').eq('user_id', userId),
-          window.supabaseClient.from('feeding_logs').select('*').eq('user_id', userId),
-          window.supabaseClient.from('stock_items').select('*').eq('user_id', userId),
-          window.supabaseClient.from('expenses').select('*').eq('user_id', userId),
+          window.supabaseClient.from('pets').select('*').eq('household_id', currentHouseholdId),
+          window.supabaseClient.from('feeding_logs').select('*').eq('household_id', currentHouseholdId),
+          window.supabaseClient.from('stock_items').select('*').eq('household_id', currentHouseholdId),
+          window.supabaseClient.from('expenses').select('*').eq('household_id', currentHouseholdId),
           window.supabaseClient.from('community_posts').select('*').order('id', { ascending: false }),
           window.supabaseClient.from('cart_items').select('*').eq('user_id', userId),
           window.supabaseClient.from('scan_history').select('*').eq('user_id', userId),
-          window.supabaseClient.from('care_tasks').select('*').eq('user_id', userId),
+          window.supabaseClient.from('care_tasks').select('*').eq('household_id', currentHouseholdId),
           window.supabaseClient.from('orders').select('*').eq('user_id', userId),
-          window.supabaseClient.from('mood_logs').select('*').eq('user_id', userId),
-          window.supabaseClient.from('meds').select('*').eq('user_id', userId),
-          window.supabaseClient.from('vet_logs').select('*').eq('user_id', userId),
-          window.supabaseClient.from('sleep_logs').select('*').eq('user_id', userId),
-          window.supabaseClient.from('pet_gallery').select('*').eq('user_id', userId),
-          window.supabaseClient.from('weight_history').select('*').eq('user_id', userId),
-          window.supabaseClient.from('custom_recipes').select('*').eq('user_id', userId)
+          window.supabaseClient.from('mood_logs').select('*').eq('household_id', currentHouseholdId),
+          window.supabaseClient.from('meds').select('*').eq('household_id', currentHouseholdId),
+          window.supabaseClient.from('vet_logs').select('*').eq('household_id', currentHouseholdId),
+          window.supabaseClient.from('sleep_logs').select('*').eq('household_id', currentHouseholdId),
+          window.supabaseClient.from('pet_gallery').select('*').eq('household_id', currentHouseholdId),
+          window.supabaseClient.from('weight_history').select('*').eq('household_id', currentHouseholdId),
+          window.supabaseClient.from('custom_recipes').select('*').eq('household_id', currentHouseholdId)
         ]);
 
-        const profileRes = { data: profileData }; // Keep reference for later logic
+        const profileRes = { data: profileData };
 
         if (petsRes.data) {
           pawCache.pets = petsRes.data.map(p => {
@@ -301,7 +306,14 @@ const USE_SUPABASE_ONLY = false;
               activityLevel: p.activity_level || 'Moderate (Normal)',
               color: p.color || '#FFD5A8',
               avatar: p.avatar || null,
-              breedTraits: p.breed_traits || null
+              breedTraits: p.breed_traits || null,
+              gallery: p.gallery || [],
+              weightHistory: p.weight_history || [],
+              waterToday: parseFloat(p.water_today || 0),
+              waterDrops: Array.from({length: parseInt(p.water_today || 0)}, (_, i) => i),
+              waterDate: p.water_date || '',
+              moodToday: p.mood_today || '',
+              moodDate: p.mood_date || ''
             };
             if (!petObj.breedTraits && (p.species === 'Dog' || p.species === 'Cat') && breedCache[p.species]) {
               const found = breedCache[p.species].find(b => b.name.toLowerCase() === p.breed.toLowerCase());
@@ -314,6 +326,7 @@ const USE_SUPABASE_ONLY = false;
             }
             return petObj;
           });
+          (!USE_SUPABASE_ONLY && localStorage.setItem('pawPets', JSON.stringify(pawCache.pets)));
         }
 
         if (logsRes.data) {
@@ -481,13 +494,18 @@ const USE_SUPABASE_ONLY = false;
         }
 
         if (tasksRes.data) {
-          pawCache.tasks = tasksRes.data.map(t => ({
-            id: t.id,
-            petIdx: 0,
-            title: t.text,
-            completed: t.completed,
-            dateTime: t.date
-          }));
+          pawCache.tasks = tasksRes.data.map(t => {
+            if (t.payload) {
+              return { ...t.payload, id: t.id };
+            }
+            return {
+              id: t.id,
+              petIdx: 0,
+              title: t.text,
+              completed: t.completed,
+              dateTime: t.date
+            };
+          });
         }
 
         // ONE-TIME PURGE OF DUMMY DATA - uses session flag (safe for USE_SUPABASE_ONLY mode)
@@ -774,10 +792,18 @@ const USE_SUPABASE_ONLY = false;
             health: p.health || '',
             water_goal: parseFloat(p.waterGoal || 500),
             activity_level: p.activityLevel || 'Moderate',
-            breed_traits: p.breedTraits || null
+            breed_traits: p.breedTraits || null,
+            avatar: p.avatar || null,
+            color: p.color || null,
+            gallery: p.gallery || [],
+            weight_history: p.weightHistory || [],
+            water_today: p.waterDrops ? p.waterDrops.length : parseFloat(p.waterToday || 0),
+            water_date: p.waterDate || '',
+            mood_today: p.moodToday || '',
+            mood_date: p.moodDate || ''
           };
           if (p.id) payload.id = p.id;
-          const { data, error } = await window.supabaseClient.from('pets').upsert(payload).select('id').single();
+          const { data, error } = await window.supabaseClient.from('pets').upsert({...payload, household_id: currentHouseholdId}).select('id').single();
           if (error) {
             console.error('Error saving pet to Supabase:', error.message, payload);
           } else if (data) {
@@ -843,18 +869,29 @@ const USE_SUPABASE_ONLY = false;
       if (!window.supabaseClient || !currentUser) return;
       const userId = currentUser.id;
       try {
+        const { data: dbLogs } = await window.supabaseClient.from('feeding_logs').select('id').eq('user_id', userId);
+        if (dbLogs) {
+          const activeIds = log.map(l => l.id).filter(id => typeof id === 'number');
+          const deletedIds = dbLogs.filter(m => !activeIds.includes(m.id)).map(m => m.id);
+          if (deletedIds.length > 0) {
+            await window.supabaseClient.from('feeding_logs').delete().in('id', deletedIds);
+          }
+        }
         for (let i = 0; i < log.length; i++) {
           const entry = log[i];
-          if (entry.id) continue;
           const petId = pawCache.pets[entry.petIdx]?.id || null;
-          const { data, error } = await window.supabaseClient.from('feeding_logs').insert({
+          const payload = {
             user_id: userId,
             pet_id: petId,
             type: entry.type,
             amount: parseFloat(entry.amount || 0),
             note: entry.note || '',
             timestamp: entry.timestamp || new Date().toISOString()
-          }).select('id').single();
+          };
+          if (entry.id && typeof entry.id === 'number') {
+            payload.id = entry.id;
+          }
+          const { data, error } = await window.supabaseClient.from('feeding_logs').upsert({...payload, household_id: currentHouseholdId}).select('id').single();
           if (!error && data) entry.id = data.id;
         }
       } catch (err) {
@@ -936,6 +973,30 @@ const USE_SUPABASE_ONLY = false;
           console.error("Failed to restore Supabase session:", e);
         }
       }
+
+      const storedLocalUser = localStorage.getItem('pawfeedCurrentUser');
+      if (storedLocalUser) {
+        try {
+          currentUser = JSON.parse(storedLocalUser);
+          if (window.initPushNotifications) window.initPushNotifications(currentUser.id);
+          loadApp();
+          if (s.reminders) startAllReminders();
+          if (window.supabaseClient) {
+            fetchAllDataFromSupabase().then(() => {
+              refreshAllUI();
+              initCalendar();
+            });
+            setupRealtimeSubscriptions();
+          } else {
+            refreshAllUI();
+            initCalendar();
+          }
+          return;
+        } catch (e) {
+          console.error("Failed to parse local auth:", e);
+        }
+      }
+
       showScreen('loginScreen');
     }
 
@@ -986,6 +1047,9 @@ const USE_SUPABASE_ONLY = false;
           if (!error && data) {
             pawCache.tasks = data.map(t => {
               const petIdx = pawCache.pets.findIndex(p => p.id === t.pet_id);
+              if (t.payload) {
+                return { ...t.payload, id: t.id, petIdx: petIdx >= 0 ? petIdx : 0 };
+              }
               return {
                 id: t.id,
                 petIdx: petIdx >= 0 ? petIdx : 0,
@@ -1048,9 +1112,11 @@ const USE_SUPABASE_ONLY = false;
     }
 
     // ==================== CONFIRM ====================
-    function showConfirm(title, msg, onOk) {
+    function showConfirm(title, msg, onOk, okText = 'OK') {
       document.getElementById('confirmTitle').textContent = title;
       document.getElementById('confirmMsg').textContent = msg;
+      const okBtn = document.getElementById('confirmOkBtn');
+      if (okBtn) okBtn.textContent = okText;
       confirmCallback = onOk;
       document.getElementById('confirmDialog').classList.remove('hidden');
     }
@@ -1268,6 +1334,7 @@ const USE_SUPABASE_ONLY = false;
         }
 
         currentUser = data.user;
+        localStorage.setItem('pawfeedCurrentUser', JSON.stringify(currentUser));
         if (window.initPushNotifications) window.initPushNotifications(currentUser.id);
         loadApp();
         fetchAllDataFromSupabase().then(() => {
@@ -1281,14 +1348,23 @@ const USE_SUPABASE_ONLY = false;
 
     async function logoutUser() {
       showConfirm('Logout?', 'You will be returned to the login screen.', async () => {
-        if (window.supabaseClient) {
-          await window.supabaseClient.auth.signOut();
+        try {
+          if (window.supabaseClient) {
+            await window.supabaseClient.auth.signOut();
+          }
+          if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.GoogleAuth) {
+            try {
+              await window.Capacitor.Plugins.GoogleAuth.initialize();
+              await window.Capacitor.Plugins.GoogleAuth.signOut();
+            } catch(ign) {}
+          }
+        } catch (e) {
+          console.error("Signout error", e);
         }
         currentUser = null;
-        const keys = ['pawPets', 'pawLog', 'pawStock', 'pawSettings', 'pawActivePet', 'pawExpenses', 'pawCart', 'pawScanHistory', 'pawOrders', 'pawRecipeFavorites', 'pawCustomRecipes', 'pawMoodLog', 'pawMeds', 'pawVetLog', 'pawSleepLog', 'pawWeightHistory', 'pawGallery', 'pawRecipeMemory', 'pawWeeklyPlan'];
-        keys.forEach(k => localStorage.removeItem(k));
+        localStorage.clear();
         location.reload();
-      });
+      }, 'Logout');
     }
 
     // ==================== FORGOT PASSWORD ====================
@@ -1401,6 +1477,11 @@ const USE_SUPABASE_ONLY = false;
           users[idx].name = newName;
           localStorage.setItem('pawAuthUsers', JSON.stringify(users));
         }
+      }
+      
+      if (typeof currentUser !== 'undefined' && currentUser) {
+        if (!currentUser.user_metadata) currentUser.user_metadata = {};
+        currentUser.user_metadata.display_name = newName;
       }
       
       loadUser();
@@ -1959,7 +2040,7 @@ const USE_SUPABASE_ONLY = false;
       if (!pet) return { feedings: 0, waterPct: 0, mood: '—' };
 
       const today = todayStr();
-      const todayLogs = log.filter(e => e.petIdx === activeIdx && e.timestamp.slice(0, 10) === today);
+      const todayLogs = log.filter(e => e.petIdx === activeIdx && (e.timestamp.slice(0, 10) === today || e.timestamp.startsWith(today)));
       const feedings = todayLogs.filter(e => e.type === 'fed').length;
 
       // Water
@@ -2003,17 +2084,20 @@ const USE_SUPABASE_ONLY = false;
         }
         for (let i = 0; i < tasks.length; i++) {
           const task = tasks[i];
+          const petId = pawCache.pets[task.petIdx]?.id || null;
           const payload = {
             user_id: userId,
-            text: task.title || '',
-            completed: task.completed || false,
-            date: task.dateTime ? task.dateTime.slice(0, 10) : new Date().toISOString().slice(0, 10),
+            pet_id: petId,
+            title: task.title,
+            date_time: task.dateTime,
+            repeat: task.repeat,
+            completed: task.completed,
             payload: task
           };
           if (task.id && typeof task.id === 'number') {
             payload.id = task.id;
           }
-          const { data, error } = await window.supabaseClient.from('care_tasks').upsert(payload).select('id').single();
+          const { data, error } = await window.supabaseClient.from('care_tasks').upsert({...payload, household_id: currentHouseholdId}).select('id').single();
           if (!error && data) task.id = data.id;
         }
       } catch (err) {
@@ -2159,7 +2243,7 @@ const USE_SUPABASE_ONLY = false;
     function deletePlannerTask(id) {
       showConfirm('Delete Task?', 'Are you sure you want to remove this task from the care plan?', () => {
         let tasks = getCareTasks();
-        tasks = tasks.filter(t => t.id !== id);
+        tasks = tasks.filter(t => String(t.id) !== String(id));
         saveCareTasks(tasks);
         showToast('Task removed from plan');
         refreshAllUI();
@@ -2168,7 +2252,7 @@ const USE_SUPABASE_ONLY = false;
 
     function completePlannerTask(taskId, dateStr) {
       const tasks = getCareTasks();
-      const task = tasks.find(t => t.id === taskId);
+      const task = tasks.find(t => String(t.id) === String(taskId));
       if (!task) return;
 
       if (!task.completedDates) task.completedDates = [];
@@ -2252,7 +2336,7 @@ const USE_SUPABASE_ONLY = false;
 
     function uncompletePlannerTask(taskId, dateStr) {
       const tasks = getCareTasks();
-      const task = tasks.find(t => t.id === taskId);
+      const task = tasks.find(t => String(t.id) === String(taskId));
       if (!task) return;
 
       if (task.completedDates) {
@@ -2525,7 +2609,7 @@ const USE_SUPABASE_ONLY = false;
           renderCommunity();
           if (typeof renderCarePlannerTab === 'function') renderCarePlannerTab();
           renderMarketplace();
-          renderGameTab();
+          renderRecordsTab();
         }, 150);
         setTimeout(() => {
           if (typeof renderDailyChecklist === 'function') renderDailyChecklist();
@@ -3604,14 +3688,9 @@ const USE_SUPABASE_ONLY = false;
           }
           renderCommunity();
           document.getElementById('householdIdDisplay').value = currentHouseholdId || '';
-        } else if (sub === 'game') {
-          const box = document.getElementById('comboInner-social-game');
-          const tab = document.getElementById('gameTab');
-          if (box && tab) {
-            box.appendChild(tab);
-            tab.classList.remove('hidden');
-          }
-          renderGameTab();
+        } else if (sub === 'records') {
+
+          renderRecordsTab();
         } else if (sub === 'vision') {
           const box = document.getElementById('comboInner-social-vision');
           const tab = document.getElementById('visionTab');
@@ -4275,48 +4354,6 @@ const USE_SUPABASE_ONLY = false;
       saveCart([]); renderMarketplace(); showToast('Demo order placed ✅');
     }
 
-    // ==================== GAMIFICATION FEATURES ====================
-    function getGameStats() {
-      const log = getLog(); const pets = getPets(); const streak = calculateStreak();
-      const feedings = log.filter(e => e.type === 'fed').length;
-      const water = log.filter(e => e.type === 'water').length;
-      const moods = log.filter(e => e.type === 'mood').length;
-      const posts = getCommunityPosts().length;
-      const scans = getScanHistory().length;
-      const xp = feedings * 20 + water * 8 + moods * 10 + streak * 30 + posts * 15 + scans * 12;
-      const level = Math.max(1, Math.floor(xp / 100) + 1);
-      const score = Math.min(100, Math.round((feedings * 6 + water * 3 + moods * 4 + streak * 8 + scans * 2) / Math.max(1, pets.length || 1)));
-      return { xp, level, score, streak, feedings, water, moods, posts, scans };
-    }
-    function completeChallenge(key, xp) {
-      const doneKey = 'pawChallenge_' + todayStr() + '_' + key;
-      const log = getLog();
-      const alreadyDone = log.some(e => e.type === 'challenge' && e.timestamp.startsWith(todayStr()) && e.note.includes(key));
-      if (alreadyDone || (USE_SUPABASE_ONLY ? null : localStorage.getItem(doneKey))) { showToast('Already completed today'); return; }
-      log.unshift({ id: Date.now(), type: 'challenge', note: 'Completed challenge: ' + key + ' (+' + xp + ' XP)', timestamp: new Date().toISOString(), petName: 'PawFeed', petIdx: -1 });
-      saveLog(log); (!USE_SUPABASE_ONLY && localStorage.setItem(doneKey, 'true')); renderGameTab(); showToast('Challenge completed +' + xp + ' XP 🏆');
-    }
-    function renderGameTab() {
-      const box = document.getElementById('gameBox'); if (!box) return;
-      const g = getGameStats(); const next = g.xp % 100;
-      const badges = [
-        ['🔥', 'Streak Starter', g.streak >= 2], ['🏆', '7-Day Hero', g.streak >= 7], ['🍽️', 'Food Logger', g.feedings >= 5], ['💧', 'Hydration Buddy', g.water >= 5], ['😊', 'Mood Friend', g.moods >= 3], ['👥', 'Community Star', g.posts >= 2], ['📷', 'Smart Scanner', g.scans >= 2], ['⭐', 'Care Pro', g.score >= 80], ['👑', 'Pet Champion', g.level >= 5]
-      ];
-      const leaderboard = getPets().map((p, i) => ({ name: p.name, icon: PET_ICONS[p.type] || '🐾', score: Math.min(100, g.score + (i * 3) % 9) })).sort((a, b) => b.score - a.score);
-      box.innerHTML = `
-    <div class="card"><h3 style="font-weight:900">Pet Care Level ${g.level}</h3><p style="font-size:13px;color:var(--muted)">Earn XP by feeding, logging water, posting, scanning, and completing challenges.</p><div class="progress-bar-wrap"><div class="progress-bar" style="width:${next}%"></div></div><small style="color:var(--muted)">${g.xp} XP total · ${100 - next} XP to next level</small></div>
-    <div class="game-stat-grid"><div class="game-stat"><b>${g.streak}</b><span>Streak</span></div><div class="game-stat"><b>${g.xp}</b><span>XP</span></div><div class="game-stat"><b>${g.level}</b><span>Level</span></div><div class="game-stat"><b>${g.score}</b><span>Care Score</span></div></div>
-    <h3 class="section-title">🎖️ Badges / Achievements</h3><div class="badge-grid">${badges.map(b => `<div class="achievement ${b[2] ? 'unlocked' : ''}"><span class="ach-icon">${b[0]}</span><b style="font-size:11px">${b[1]}</b></div>`).join('')}</div>
-    <h3 class="section-title">🎯 Daily Challenges</h3>
-    <div class="challenge-card"><div><b>Log one meal</b><p style="font-size:12px;color:var(--muted)">Reward: +25 XP</p></div><button class="small-btn" onclick="completeChallenge('meal',25)">Done</button></div>
-    <div class="challenge-card"><div><b>Refill water</b><p style="font-size:12px;color:var(--muted)">Reward: +15 XP</p></div><button class="small-btn" onclick="completeChallenge('water',15)">Done</button></div>
-    <div class="challenge-card"><div><b>Share a pet post</b><p style="font-size:12px;color:var(--muted)">Reward: +20 XP</p></div><button class="small-btn" onclick="openTab('community')">Post</button></div>
-    <h3 class="section-title">📈 Care Score Leaderboard</h3>
-    ${leaderboard.length ? leaderboard.map((p, i) => `<div class="leader-row"><div class="rank">${i + 1}</div><div style="font-size:22px">${p.icon}</div><div style="flex:1"><b>${p.name}</b><div class="progress-bar-wrap"><div class="progress-bar" style="width:${p.score}%"></div></div></div><b>${p.score}</b></div>`).join('') : `<div class="card empty-state"><h3>No pets yet</h3><p>Add pets to build a leaderboard.</p></div>`}
-    <h3 class="section-title">🔥 Streaks & Milestones</h3>
-    <div id="streaksDashboard"></div>
-  `;
-    }
 
     function compressImage(dataUrl, maxDim = 800) {
       return new Promise((resolve) => {
@@ -4432,7 +4469,7 @@ const USE_SUPABASE_ONLY = false;
       hist.unshift({ id: Date.now(), mode, title, risk, result, advice, image: selectedVisionImage, date: new Date().toISOString() });
       saveScanHistory(hist.slice(0, 25));
       renderVisionHistory();
-      renderGameTab();
+      renderRecordsTab();
     }
     function renderVisionHistory() {
       const box = document.getElementById('scanHistoryBox'); if (!box) return;
@@ -5149,7 +5186,7 @@ const USE_SUPABASE_ONLY = false;
       if (!window.supabaseClient || !currentUser) return;
       const userId = currentUser.id;
       try {
-        await window.supabaseClient.from('mood_logs').delete().eq('user_id', userId);
+        await window.supabaseClient.from('mood_logs').delete().eq('household_id', currentHouseholdId);
         if (d.length > 0) {
           const rows = d.map(item => {
             const petId = pawCache.pets[item.petIdx]?.id || null;
@@ -5160,7 +5197,7 @@ const USE_SUPABASE_ONLY = false;
               label: item.label
             };
           });
-          await window.supabaseClient.from('mood_logs').insert(rows);
+          await window.supabaseClient.from('mood_logs').insert(rows.map(r => ({...r, household_id: currentHouseholdId})));
         }
       } catch (err) {
         console.error("Error syncing mood log to Supabase:", err);
@@ -5219,7 +5256,7 @@ const USE_SUPABASE_ONLY = false;
           if (item.id && typeof item.id === 'number' && item.id < 10000000000) {
             payload.id = item.id;
           }
-          const { data, error } = await window.supabaseClient.from('meds').upsert(payload).select('id').single();
+          const { data, error } = await window.supabaseClient.from('meds').upsert({...payload, household_id: currentHouseholdId}).select('id').single();
           if (!error && data) item.id = data.id;
         }
       } catch (err) {
@@ -5263,7 +5300,7 @@ const USE_SUPABASE_ONLY = false;
       if (!window.supabaseClient || !currentUser) return;
       const userId = currentUser.id;
       try {
-        await window.supabaseClient.from('vet_logs').delete().eq('user_id', userId);
+        await window.supabaseClient.from('vet_logs').delete().eq('household_id', currentHouseholdId);
         if (d.length > 0) {
           const rows = d.map(item => {
             const petId = pawCache.pets[item.petIdx]?.id || null;
@@ -5275,7 +5312,7 @@ const USE_SUPABASE_ONLY = false;
               notes: (item.reason || '') + (item.notes ? '\n' + item.notes : '')
             };
           });
-          await window.supabaseClient.from('vet_logs').insert(rows);
+          await window.supabaseClient.from('vet_logs').insert(rows.map(r => ({...r, household_id: currentHouseholdId})));
         }
       } catch (err) {
         console.error("Error syncing vet logs to Supabase:", err);
@@ -5319,7 +5356,7 @@ const USE_SUPABASE_ONLY = false;
       if (!window.supabaseClient || !currentUser) return;
       const userId = currentUser.id;
       try {
-        await window.supabaseClient.from('sleep_logs').delete().eq('user_id', userId);
+        await window.supabaseClient.from('sleep_logs').delete().eq('household_id', currentHouseholdId);
         if (d.length > 0) {
           const rows = d.map(item => {
             const petId = pawCache.pets[item.petIdx]?.id || null;
@@ -5331,7 +5368,7 @@ const USE_SUPABASE_ONLY = false;
               quality: item.quality || 'Good'
             };
           });
-          await window.supabaseClient.from('sleep_logs').insert(rows);
+          await window.supabaseClient.from('sleep_logs').insert(rows.map(r => ({...r, household_id: currentHouseholdId})));
         }
       } catch (err) {
         console.error("Error syncing sleep log to Supabase:", err);
@@ -5377,7 +5414,7 @@ const USE_SUPABASE_ONLY = false;
       const petId = pawCache.pets[petIdx]?.id || null;
       if (!petId) return;
       try {
-        await window.supabaseClient.from('pet_gallery').delete().eq('user_id', userId).eq('pet_id', petId);
+        await window.supabaseClient.from('pet_gallery').delete().eq('household_id', currentHouseholdId).eq('pet_id', petId);
         if (d.length > 0) {
           const rows = d.map(item => ({
             user_id: userId,
@@ -5385,7 +5422,7 @@ const USE_SUPABASE_ONLY = false;
             image_url: item.image,
             created_at: item.time || new Date().toISOString()
           }));
-          await window.supabaseClient.from('pet_gallery').insert(rows);
+          await window.supabaseClient.from('pet_gallery').insert(rows.map(r => ({...r, household_id: currentHouseholdId})));
         }
       } catch (err) {
         console.error("Error syncing gallery to Supabase:", err);
@@ -5451,7 +5488,7 @@ const USE_SUPABASE_ONLY = false;
       const petId = pawCache.pets[petIdx]?.id || null;
       if (!petId) return;
       try {
-        await window.supabaseClient.from('weight_history').delete().eq('user_id', userId).eq('pet_id', petId);
+        await window.supabaseClient.from('weight_history').delete().eq('household_id', currentHouseholdId).eq('pet_id', petId);
         if (d.length > 0) {
           const rows = d.map(item => ({
             user_id: userId,
@@ -5459,7 +5496,7 @@ const USE_SUPABASE_ONLY = false;
             date: item.date,
             weight: parseFloat(item.weight || 0)
           }));
-          await window.supabaseClient.from('weight_history').insert(rows);
+          await window.supabaseClient.from('weight_history').insert(rows.map(r => ({...r, household_id: currentHouseholdId})));
         }
       } catch (err) {
         console.error("Error syncing weight history to Supabase:", err);
@@ -6482,14 +6519,13 @@ Use emojis and keep under 150 words.`;
 
     async function saveWeeklyPlan(plan) {
       pawCache.weeklyPlan = plan;
-      (!USE_SUPABASE_ONLY && localStorage.setItem('pawfeed_weekly_plan', JSON.stringify(plan)));
+      (!USE_SUPABASE_ONLY && localStorage.setItem('pawWeeklyPlan', JSON.stringify(plan)));
       if (!window.supabaseClient || !currentUser) return;
       const userId = currentUser.id;
       try {
-        await window.supabaseClient.from('user_profiles').upsert({
-          id: userId,
+        await window.supabaseClient.from('user_profiles').update({
           weekly_plan: plan
-        });
+        }).eq('id', userId);
       } catch (err) {
         console.error("Error syncing weekly plan to Supabase:", err);
       }
@@ -6900,10 +6936,9 @@ Use emojis and keep under 150 words.`;
       if (!window.supabaseClient || !currentUser) return;
       const userId = currentUser.id;
       try {
-        await window.supabaseClient.from('user_profiles').upsert({
-          id: userId,
+        await window.supabaseClient.from('user_profiles').update({
           daily_checklist: data
-        });
+        }).eq('id', userId);
       } catch (err) {
         console.error("Error syncing daily checklist to Supabase:", err);
       }
@@ -7125,7 +7160,7 @@ Use emojis and keep under 150 words.`;
           if (item.id && typeof item.id === 'number' && item.id < 10000000000) {
             payload.id = item.id;
           }
-          const { data, error } = await window.supabaseClient.from('expenses').upsert(payload).select('id').single();
+          const { data, error } = await window.supabaseClient.from('expenses').upsert({...payload, household_id: currentHouseholdId}).select('id').single();
           if (!error && data) item.id = data.id;
         }
       } catch (err) {
@@ -7294,7 +7329,7 @@ Use emojis and keep under 150 words.`;
       if (!window.supabaseClient || !currentUser) return;
       const userId = currentUser.id;
       try {
-        await window.supabaseClient.from('stock_items').delete().eq('user_id', userId);
+        await window.supabaseClient.from('stock_items').delete().eq('household_id', currentHouseholdId);
         if (items.length > 0) {
           const rows = items.map(item => ({
             user_id: userId,
@@ -7305,7 +7340,7 @@ Use emojis and keep under 150 words.`;
             threshold: parseFloat(item.threshold || 0),
             decrement_amount: parseFloat(item.decrementAmount || 0)
           }));
-          await window.supabaseClient.from('stock_items').insert(rows);
+          await window.supabaseClient.from('stock_items').insert(rows.map(r => ({...r, household_id: currentHouseholdId})));
         }
       } catch (err) {
         console.error("Error syncing stock items to Supabase:", err);
@@ -7477,8 +7512,15 @@ Use emojis and keep under 150 words.`;
       html += `
           </div>
 
-          <div style="background:var(--bg); border:1px solid var(--border); padding:14px; border-radius:16px">
-            <h4 style="font-weight:900; margin-bottom:10px; font-size:14px; color:var(--dark)">➕ Add Stock Item</h4>
+          <button id="toggleStockFormBtn" onclick="document.getElementById('addStockFormDiv').style.display='block'; this.style.display='none';" style="width:100%; padding:10px; margin-bottom:10px; background:var(--bg); border:1px dashed var(--purple); color:var(--purple); border-radius:12px; font-weight:800; font-size:13px; cursor:pointer;">
+            + Add Stock Item
+          </button>
+
+          <div id="addStockFormDiv" style="display:none; background:var(--bg); border:1px solid var(--border); padding:14px; border-radius:16px; margin-bottom:10px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+              <h4 style="font-weight:900; font-size:14px; color:var(--dark); margin:0;">➕ Add Stock Item</h4>
+              <button onclick="document.getElementById('addStockFormDiv').style.display='none'; document.getElementById('toggleStockFormBtn').style.display='block';" style="background:none; border:none; font-size:16px; color:var(--muted); cursor:pointer;">✕</button>
+            </div>
             
             <div style="margin-bottom:10px">
               <label style="font-size:11px; margin-bottom:4px">Item Name</label>
@@ -7818,4 +7860,504 @@ Use emojis and keep under 150 words.`;
   }
 
 })();
+
+
+
+// ==================== GOOGLE AUTH HANDLER ====================
+async function handleGoogleSignIn() {
+  try {
+    showToast("Opening Google sign-in...");
+    const data = await window.signInWithGoogle();
+    const user = data.user;
+    
+    if (user) {
+      const { data: pets } = await window.supabaseClient.from('pets').select('id').eq('user_id', user.id);
+      
+      currentUser = user;
+      localStorage.setItem('pawfeedCurrentUser', JSON.stringify(user));
+      
+      if (!pets || pets.length === 0) {
+        const fullName = user.user_metadata?.full_name || user.email.split('@')[0];
+        const avatarUrl = user.user_metadata?.avatar_url || '';
+        
+        await window.supabaseClient.from('user_profiles').upsert({
+          id: user.id,
+          display_name: fullName,
+          avatar_url: avatarUrl,
+          email: user.email
+        });
+        
+        loadApp();
+        setTimeout(() => {
+          openPetModal(-1);
+          showToast("Welcome! Let's add your first pet. 🐾");
+        }, 1000);
+      } else {
+        loadApp();
+        if (window.supabaseClient) {
+          await fetchAllDataFromSupabase();
+          refreshAllUI();
+          initCalendar();
+        }
+        showToast("Signed in with Google! ✅");
+      }
+    }
+  } catch (error) {
+    console.error("Google sign-in error:", error);
+    if (error.message && error.message.toLowerCase().includes('cancel')) {
+      showToast("Google sign-in cancelled");
+    } else {
+      showToast("Sign-in failed — please try again");
+    }
+  }
+}
+
+const originalLoadUser = loadUser;
+loadUser = function() {
+  originalLoadUser();
+  const googleBadge = document.getElementById('googleBadge');
+  if (currentUser && currentUser.app_metadata && currentUser.app_metadata.provider === 'google') {
+    if (googleBadge) {
+      googleBadge.classList.remove('hidden');
+      googleBadge.style.display = 'flex';
+    }
+    const forgotSpan = document.querySelector('.card span[onclick="openForgotPassword()"]');
+    if (forgotSpan) forgotSpan.style.display = 'none';
+  } else {
+    if (googleBadge) {
+      googleBadge.classList.add('hidden');
+      googleBadge.style.display = 'none';
+    }
+    const forgotSpan = document.querySelector('.card span[onclick="openForgotPassword()"]');
+    if (forgotSpan) forgotSpan.style.display = 'inline';
+  }
+};
+
+if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+  window.Capacitor.Plugins.App.addListener('appUrlOpen', async (data) => {
+    if (data.url.includes('/auth/v1/callback') || data.url.includes('access_token=')) {
+      if (window.supabaseClient) {
+        setTimeout(async () => {
+          const { data: { session } } = await window.supabaseClient.auth.getSession();
+          if (session && session.user) {
+            currentUser = session.user;
+            localStorage.setItem('pawfeedCurrentUser', JSON.stringify(session.user));
+            
+            const { data: pets } = await window.supabaseClient.from('pets').select('id').eq('user_id', session.user.id);
+            if (!pets || pets.length === 0) {
+              const fullName = session.user.user_metadata?.full_name || session.user.email.split('@')[0];
+              await window.supabaseClient.from('user_profiles').upsert({
+                id: session.user.id,
+                display_name: fullName,
+                email: session.user.email
+              });
+              loadApp();
+              setTimeout(() => { openPetModal(-1); }, 1000);
+            } else {
+              loadApp();
+              await fetchAllDataFromSupabase();
+              refreshAllUI();
+              initCalendar();
+            }
+          }
+        }, 500);
+      }
+    }
+  });
+}
+
+
+window.completePlannerTask = completePlannerTask;
+window.uncompletePlannerTask = uncompletePlannerTask;
+window.deletePlannerTask = deletePlannerTask;
+
+
+// ==================== PET RECORDS & HEALTH ====================
+
+
+window.switchRecordsSub = function(sub) {
+    document.getElementById('rsub-history').classList.remove('active');
+    document.getElementById('rsub-reports').classList.remove('active');
+    document.getElementById('rinner-history').style.display = 'none';
+    document.getElementById('rinner-reports').style.display = 'none';
+    
+    document.getElementById('rsub-' + sub).classList.add('active');
+    document.getElementById('rinner-' + sub).style.display = 'block';
+    
+    if (sub === 'history') renderMedicalRecordsBox();
+    if (sub === 'reports') renderMedicalReportsBox();
+};
+
+window.renderMedicalRecordsBox = function() {
+    const box = document.getElementById('medicalRecordsBox');
+    if (!box) return;
+    
+    const activeIdx = getActivePetIdx();
+    const pet = getPets()[activeIdx];
+    if (!pet) {
+        box.innerHTML = `
+        <div class="empty-state card" style="text-align:center; padding: 30px;">
+            <div style="font-size:3rem; margin-bottom:10px;">🐾</div>
+            <h3 style="margin-bottom:5px;">No Pet Selected</h3>
+            <p style="color:var(--muted); font-size:0.9rem;">Please add or select a pet first.</p>
+        </div>`;
+        return;
+    }
+    
+    const records = (pawCache.medicalRecords || []).filter(r => String(r.pet_id) === String(pet.id));
+    
+    if (records.length === 0) {
+        box.innerHTML = `
+        <div class="empty-state card" style="text-align:center; padding: 30px;">
+            <div style="font-size:3rem; margin-bottom:10px;">🩺</div>
+            <h3 style="margin-bottom:5px;">No Medical Records</h3>
+            <p style="color:var(--muted); font-size:0.9rem;">Keep track of vaccinations, vet visits, and more.</p>
+        </div>`;
+        return;
+    }
+    
+    // Sort upcoming first, then completed by date desc
+    records.sort((a, b) => {
+        if (a.status === 'Upcoming' && b.status !== 'Upcoming') return -1;
+        if (b.status === 'Upcoming' && a.status !== 'Upcoming') return 1;
+        return new Date(b.date) - new Date(a.date);
+    });
+    
+    let html = '';
+    records.forEach(r => {
+        let icon = '🩺'; // default
+        switch (r.record_type) {
+            case 'vaccination': icon = '💉'; break;
+            case 'surgery': icon = '🏥'; break;
+            case 'illness': icon = '🩹'; break;
+            case 'medication': icon = '💊'; break;
+            case 'lab_test': icon = '🧪'; break;
+            case 'other': icon = '📋'; break;
+        }
+        let statusBadge = '';
+        if (r.status === 'Upcoming') {
+            statusBadge = `<span style="font-size:0.8rem; background:var(--primary); color:white; padding:3px 10px; border-radius:12px; font-weight:bold;">Upcoming</span>`;
+        } else if (r.status === 'Cancelled') {
+            statusBadge = `<span style="font-size:0.8rem; background:#ff4d4f; color:white; padding:3px 10px; border-radius:12px; font-weight:bold;">Cancelled</span>`;
+        } else {
+            statusBadge = `<span style="font-size:0.8rem; background:#52c41a; color:white; padding:3px 10px; border-radius:12px; font-weight:bold;">Completed</span>`;
+        }
+        
+        // Highlight overdue next_due_date
+        let isOverdue = false;
+        if (r.next_due_date) {
+            isOverdue = new Date(r.next_due_date) < new Date();
+        }
+
+        html += `
+        <div class="med-record-card" onclick="editMedicalRecord(${r.id})">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
+                <div style="display:flex; align-items:center; gap:12px;">
+                    <div class="med-icon-box">${icon}</div>
+                    <div>
+                        <h3 style="margin:0; font-size:1.1rem; color:var(--dark); font-weight: 800;">${r.vaccine_name || r.title || 'Record'}</h3>
+                        <p style="margin:0; font-size:0.85rem; color:var(--muted);">${r.date}</p>
+                    </div>
+                </div>
+                <div>${statusBadge}</div>
+            </div>
+            ${r.clinic_name ? `<p style="margin:6px 0 0 0; font-size:0.9rem; color:var(--text);"><b>🏥 Clinic:</b> ${r.clinic_name}</p>` : ''}
+            ${r.reason ? `<p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text);"><b>📋 Reason:</b> ${r.reason}</p>` : ''}
+            ${r.notes ? `<p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text);"><b>📝 Notes:</b> ${r.notes}</p>` : ''}
+            ${r.next_due_date ? `<div style="margin-top:10px; padding:8px 10px; background:${isOverdue ? 'rgba(207,19,34,0.1)' : 'var(--pill-bg)'}; border-radius:8px; font-size:0.85rem; color:${isOverdue ? '#cf1322' : 'var(--dark)'}; font-weight: 600; display:flex; align-items:center; gap:6px;">
+                <span>🗓️ Next Due:</span> <span>${r.next_due_date} ${isOverdue ? '(OVERDUE)' : ''}</span>
+            </div>` : ''}
+            <div style="text-align: right; margin-top: 10px;">
+                <button class="btn" style="background:transparent; border:none; color:#ff4d4f; font-size:1.2rem; cursor:pointer; padding: 4px; transition: transform 0.2s ease;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'" onclick="event.stopPropagation(); deleteMedicalRecord(${r.id})">🗑️</button>
+            </div>
+        </div>`;
+    });
+    box.innerHTML = html;
+};
+
+window.openMedicalRecordModal = function(id = null) {
+    const modal = document.getElementById('medicalRecordModal');
+    if (!modal) return;
+    
+    if (id) {
+        document.getElementById('medicalRecordModalTitle').innerText = 'Edit Record';
+        document.getElementById('medRecordId').value = id;
+        const r = pawCache.medicalRecords.find(x => String(x.id) === String(id));
+        if (r) {
+            document.getElementById('medRecordType').value = r.record_type;
+            document.getElementById('medRecordTitle').value = r.vaccine_name || r.title || '';
+            document.getElementById('medRecordDate').value = r.date || '';
+            document.getElementById('medRecordNextDue').value = r.next_due_date || '';
+            document.getElementById('medRecordClinic').value = r.clinic_name || '';
+            if(document.getElementById('medRecordReason')) document.getElementById('medRecordReason').value = r.reason || '';
+            document.getElementById('medRecordNotes').value = r.notes || '';
+            document.getElementById('medRecordStatus').value = r.status || 'Completed';
+        }
+    } else {
+        document.getElementById('medicalRecordModalTitle').innerText = 'Add Record';
+        document.getElementById('medRecordId').value = '';
+        document.getElementById('medRecordType').value = 'vaccination';
+        document.getElementById('medRecordTitle').value = '';
+        document.getElementById('medRecordDate').value = new Date().toISOString().slice(0, 10);
+        document.getElementById('medRecordNextDue').value = '';
+        document.getElementById('medRecordClinic').value = '';
+        if(document.getElementById('medRecordReason')) document.getElementById('medRecordReason').value = '';
+        document.getElementById('medRecordNotes').value = '';
+        document.getElementById('medRecordStatus').value = 'Completed';
+    }
+    modal.classList.remove('hidden');
+};
+
+window.closeMedicalRecordModal = function() {
+    const modal = document.getElementById('medicalRecordModal');
+    if (modal) modal.classList.add('hidden');
+};
+
+window.editMedicalRecord = window.openMedicalRecordModal;
+
+window.saveMedicalRecord = async function() {
+    if (!currentUser) return showToast("Must be logged in.");
+    const id = document.getElementById('medRecordId').value;
+    const petIdx = getActivePetIdx();
+    const pet = getPets()[petIdx];
+    if (!pet) return showToast("No pet selected.");
+    
+    const payload = {
+        user_id: currentUser.id,
+        pet_id: pet.id,
+        record_type: document.getElementById('medRecordType').value,
+        vaccine_name: document.getElementById('medRecordTitle').value,
+        date: document.getElementById('medRecordDate').value,
+        next_due_date: document.getElementById('medRecordNextDue').value || null,
+        clinic_name: document.getElementById('medRecordClinic').value,
+        notes: document.getElementById('medRecordNotes').value,
+        status: document.getElementById('medRecordStatus').value
+    };
+    if(document.getElementById('medRecordReason')) {
+        payload.reason = document.getElementById('medRecordReason').value;
+    }
+    if (id) payload.id = id;
+    
+    if (!payload.date) return showToast("Date is required.");
+    if (!payload.vaccine_name) return showToast("Title is required.");
+    
+    showToast("Saving...");
+    const { data, error } = await window.supabaseClient.from('medical_records').upsert({...payload, household_id: currentHouseholdId}).select().single();
+    if (error) {
+        console.error(error);
+        showToast("Error saving record.");
+    } else {
+        if (!pawCache.medicalRecords) pawCache.medicalRecords = [];
+        const existingIdx = pawCache.medicalRecords.findIndex(x => String(x.id) === String(data.id));
+        if (existingIdx > -1) {
+            pawCache.medicalRecords[existingIdx] = data;
+        } else {
+            pawCache.medicalRecords.push(data);
+        }
+        closeMedicalRecordModal();
+        renderMedicalRecordsBox();
+        showToast("Record saved successfully ✅");
+    }
+};
+
+window.deleteMedicalRecord = async function(id) {
+    if (!confirm("Are you sure you want to delete this record?")) return;
+    showToast("Deleting...");
+    const { error } = await window.supabaseClient.from('medical_records').delete().eq('id', id);
+    if (error) {
+        console.error(error);
+        showToast("Error deleting record.");
+    } else {
+        pawCache.medicalRecords = pawCache.medicalRecords.filter(x => String(x.id) !== String(id));
+        renderMedicalRecordsBox();
+        showToast("Record deleted 🗑️");
+    }
+};
+
+window.renderMedicalReportsBox = function() {
+    const box = document.getElementById('medicalReportsBox');
+    if (!box) return;
+    
+    const activeIdx = getActivePetIdx();
+    const pet = getPets()[activeIdx];
+    if (!pet) {
+        box.innerHTML = `
+        <div class="empty-state card" style="text-align:center; padding: 30px;">
+            <div style="font-size:3rem; margin-bottom:10px;">🐾</div>
+            <h3 style="margin-bottom:5px;">No Pet Selected</h3>
+            <p style="color:var(--muted); font-size:0.9rem;">Please add or select a pet first.</p>
+        </div>`;
+        return;
+    }
+    
+    const reports = (pawCache.medicalReports || []).filter(r => String(r.pet_id) === String(pet.id));
+    
+    if (reports.length === 0) {
+        box.innerHTML = `
+        <div class="empty-state card" style="text-align:center; padding: 30px;">
+            <div style="font-size:3rem; margin-bottom:10px;">📄</div>
+            <h3 style="margin-bottom:5px;">No Medical Reports</h3>
+            <p style="color:var(--muted); font-size:0.9rem;">Upload prescriptions, lab results, and x-rays.</p>
+        </div>`;
+        return;
+    }
+    
+    reports.sort((a, b) => new Date(b.upload_date) - new Date(a.upload_date));
+    
+    let html = '';
+    reports.forEach(r => {
+        let fileIcon = '📄';
+        if (r.file_url.includes('.pdf')) fileIcon = '📕';
+        else if (r.file_url.match(/\.(jpeg|jpg|gif|png)$/i)) fileIcon = '🖼️';
+
+        html += `
+        <div class="med-report-card">
+            <div style="flex:1; display:flex; align-items:center; gap:14px; cursor:pointer;" onclick="window.open('${r.file_url}', '_blank')">
+                <div class="med-icon-box" style="color:var(--primary);">${fileIcon}</div>
+                <div>
+                    <h3 style="margin:0; font-size:1.1rem; color:var(--dark); font-weight: 800;">${r.title || 'Document'}</h3>
+                    <p style="margin:0; font-size:0.85rem; color:var(--muted);">${r.upload_date} • <span style="background:var(--pill-bg); color:var(--dark); padding:2px 6px; border-radius:6px; font-size:0.75rem;">${r.report_type}</span></p>
+                    ${r.notes ? `<p style="margin:6px 0 0 0; font-size:0.85rem; color:var(--text);">${r.notes}</p>` : ''}
+                </div>
+            </div>
+            <button class="btn" style="background:transparent; border:none; color:#ff4d4f; font-size:1.4rem; cursor:pointer; padding: 8px; transition: transform 0.2s ease;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'" onclick="deleteMedicalReport(${r.id}, '${r.file_url}')">🗑️</button>
+        </div>`;
+    });
+    box.innerHTML = html;
+};
+
+window.openMedicalReportModal = function() {
+    const modal = document.getElementById('medicalReportModal');
+    if (!modal) return;
+    
+    document.getElementById('medReportTitle').value = '';
+    document.getElementById('medReportType').value = 'Lab Results';
+    document.getElementById('medReportNotes').value = '';
+    
+    const fileInput = document.getElementById('medReportFile');
+    if (fileInput) fileInput.value = '';
+    
+    modal.classList.remove('hidden');
+};
+
+window.closeMedicalReportModal = function() {
+    const modal = document.getElementById('medicalReportModal');
+    if (modal) modal.classList.add('hidden');
+};
+
+window.uploadMedicalReport = async function() {
+    if (!currentUser) return showToast("Must be logged in.");
+    const petIdx = getActivePetIdx();
+    const pet = getPets()[petIdx];
+    if (!pet) return showToast("No pet selected.");
+    
+    const title = document.getElementById('medReportTitle').value;
+    const type = document.getElementById('medReportType').value;
+    const notes = document.getElementById('medReportNotes').value;
+    const fileInput = document.getElementById('medReportFile');
+    
+    if (!title) return showToast("Title is required.");
+    if (!fileInput.files || fileInput.files.length === 0) return showToast("Please select a file.");
+    
+    const file = fileInput.files[0];
+    const fileName = `${currentUser.id}/${pet.id}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+    
+    const btn = document.getElementById('medReportSaveBtn');
+    const loading = document.getElementById('medReportUploading');
+    btn.disabled = true;
+    loading.style.display = 'block';
+    
+    try {
+        // Convert file to ArrayBuffer to prevent Capacitor fetch issues
+        const arrayBuffer = await file.arrayBuffer();
+        
+        // Upload to Storage
+        const { data: uploadData, error: uploadError } = await window.supabaseClient.storage
+            .from('medical-reports')
+            .upload(fileName, arrayBuffer, {
+                contentType: file.type,
+                upsert: false
+            });
+            
+        if (uploadError) {
+            console.error("Storage upload error details:", uploadError);
+            throw uploadError;
+        }
+        
+        // Get Public URL
+        const { data: publicUrlData } = window.supabaseClient.storage
+            .from('medical-reports')
+            .getPublicUrl(fileName);
+            
+        // Save to DB
+        const payload = {
+            user_id: currentUser.id,
+            pet_id: pet.id,
+            title: title,
+            upload_date: new Date().toISOString().slice(0, 10),
+            report_type: type,
+            file_url: publicUrlData.publicUrl,
+            notes: notes
+        };
+        
+        const { data: dbData, error: dbError } = await window.supabaseClient
+            .from('medical_reports')
+            .insert(payload)
+            .select()
+            .single();
+            
+        if (dbError) throw dbError;
+        
+        if (!pawCache.medicalReports) pawCache.medicalReports = [];
+        pawCache.medicalReports.push(dbData);
+        
+        closeMedicalReportModal();
+        renderMedicalReportsBox();
+        showToast("Report uploaded successfully 📄✅");
+    } catch (e) {
+        console.error("Upload error:", e);
+        showToast("Failed to upload report.");
+    } finally {
+        btn.disabled = false;
+        loading.style.display = 'none';
+    }
+};
+
+window.deleteMedicalReport = async function(id, fileUrl) {
+    if (!confirm("Are you sure you want to delete this report? This action cannot be undone.")) return;
+    
+    // Extract file path from URL
+    let filePath = fileUrl;
+    try {
+        const urlParts = fileUrl.split('/medical-reports/');
+        if (urlParts.length > 1) {
+            filePath = urlParts[1];
+        }
+    } catch (e) {}
+    
+    showToast("Deleting...");
+    
+    try {
+        // Delete from Storage
+        if (filePath !== fileUrl) {
+            await window.supabaseClient.storage.from('medical-reports').remove([filePath]);
+        }
+        
+        // Delete from DB
+        const { error } = await window.supabaseClient.from('medical_reports').delete().eq('id', id);
+        if (error) throw error;
+        
+        pawCache.medicalReports = pawCache.medicalReports.filter(x => String(x.id) !== String(id));
+        renderMedicalReportsBox();
+        showToast("Report deleted 🗑️");
+    } catch (e) {
+        console.error("Delete error:", e);
+        showToast("Failed to delete report.");
+    }
+};
+
+window.renderRecordsTab = function() {
+    renderMedicalRecordsBox();
+    renderMedicalReportsBox();
+};
 

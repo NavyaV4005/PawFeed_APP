@@ -609,18 +609,6 @@ const USE_SUPABASE_ONLY = true;
     let galleryTargetPet = -1;
     let selectedCommunityImage = '';
     let selectedVisionImage = '';
-    const MARKET_PRODUCTS = [
-      { id: 'dog1', pet: 'Dog', icon: '🐶', name: 'Premium Dog Kibble', desc: 'Protein-rich daily food for adult dogs.', price: 499 },
-      { id: 'dog2', pet: 'Dog', icon: '🦴', name: 'Dental Chew Pack', desc: 'Helps with chewing and dental care.', price: 199 },
-      { id: 'cat1', pet: 'Cat', icon: '🐱', name: 'Tuna Wet Cat Food', desc: 'Hydration-friendly wet food for cats.', price: 349 },
-      { id: 'cat2', pet: 'Cat', icon: '🥣', name: 'Kitten Dry Food', desc: 'Balanced nutrition for growing kittens.', price: 429 },
-      { id: 'rabbit1', pet: 'Rabbit', icon: '🥕', name: 'Fresh Hay Mix', desc: 'Fiber-focused hay blend for rabbits.', price: 299 },
-      { id: 'bird1', pet: 'Bird', icon: '🦜', name: 'Seed & Pellet Mix', desc: 'Daily balanced feed for birds.', price: 249 },
-      { id: 'fish1', pet: 'Fish', icon: '🐟', name: 'Floating Fish Pellets', desc: 'Clean-water formula fish pellets.', price: 179 },
-      { id: 'hamster1', pet: 'Hamster', icon: '🐹', name: 'Hamster Grain Mix', desc: 'Balanced grain & seed blend for hamsters.', price: 149 },
-      { id: 'hamster2', pet: 'Hamster', icon: '🌾', name: 'Hamster Chew Sticks', desc: 'Natural wood chew sticks for dental health.', price: 99 },
-      { id: 'all1', pet: 'All', icon: '💧', name: 'Travel Water Bottle', desc: 'Portable water bottle for pets.', price: 229 }
-    ];
 
     // ==================== AI FEATURES HANDLERS ====================
     async function generateAIRecipe() {
@@ -2609,7 +2597,6 @@ const USE_SUPABASE_ONLY = true;
         setTimeout(() => {
           renderCommunity();
           if (typeof renderCarePlannerTab === 'function') renderCarePlannerTab();
-          renderMarketplace();
           renderRecordsTab();
         }, 150);
         setTimeout(() => {
@@ -4293,30 +4280,6 @@ const USE_SUPABASE_ONLY = true;
         input.focus();
       }
     });
-
-    // ==================== MARKETPLACE FEATURES ====================
-    function renderMarketplace() {
-      const box = document.getElementById('marketProductsBox'); if (!box) return;
-      const filter = document.getElementById('marketFilter') ? document.getElementById('marketFilter').value : 'All';
-      const list = MARKET_PRODUCTS.filter(p => filter === 'All' || p.pet === filter || p.pet === 'All');
-      box.innerHTML = list.map(p => `<div class="product-card"><div class="product-icon">${p.icon}</div><div class="product-info"><b>${p.name}</b><p style="font-size:12px;color:var(--muted);line-height:1.4">${p.desc}</p><div class="price">₹${p.price}</div></div><button class="small-btn" onclick="addToCart('${p.id}')">Add</button></div>`).join('');
-      renderCart();
-    }
-    function addToCart(id) {
-      const product = MARKET_PRODUCTS.find(p => p.id === id); if (!product) return;
-      const cart = getCart();
-      const item = cart.find(x => x.id === id);
-      if (item) item.qty += 1; else cart.push({ ...product, qty: 1 });
-      saveCart(cart); renderCart(); showToast(product.name + ' added 🛒');
-    }
-    function removeFromCart(id) { saveCart(getCart().filter(x => x.id !== id)); renderCart(); }
-    function renderCart() {
-      const box = document.getElementById('cartBox'); if (!box) return;
-      const cart = getCart();
-      if (!cart.length) { box.innerHTML = `<p style="font-size:13px;color:var(--muted);margin-top:8px">Cart is empty.</p>`; return; }
-      const total = cart.reduce((s, i) => s + i.price * i.qty, 0);
-      box.innerHTML = cart.map(i => `<div class="history-item"><div class="history-icon">${i.icon}</div><div class="history-text"><b>${i.name}</b><span>Qty: ${i.qty} · ₹${i.price * i.qty}</span></div><button class="small-btn" onclick="removeFromCart('${i.id}')">✕</button></div>`).join('') + `<div class="divider"></div><b>Total: ₹${total}</b>`;
-    }
     function getOrders() {
       return pawCache.orders || [];
     }
@@ -4352,7 +4315,7 @@ const USE_SUPABASE_ONLY = true;
       const orders = getOrders();
       orders.unshift(order);
       await saveOrders(orders);
-      saveCart([]); renderMarketplace(); showToast('Demo order placed ✅');
+      saveCart([]); showToast('Demo order placed ✅');
     }
 
 

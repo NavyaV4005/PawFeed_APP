@@ -493,6 +493,7 @@ const USE_SUPABASE_ONLY = true;
           }
         }
 
+
         if (tasksRes.data) {
           pawCache.tasks = tasksRes.data.map(t => {
             if (t.payload) {
@@ -507,6 +508,18 @@ const USE_SUPABASE_ONLY = true;
             };
           });
         }
+        
+        // --- ADDED MEDICAL RECORDS FETCH ---
+        try {
+          const { data: medRecords } = await window.supabaseClient.from('medical_records').select('*').eq('user_id', userId);
+          if (medRecords) pawCache.medicalRecords = medRecords;
+          
+          const { data: medReports } = await window.supabaseClient.from('medical_reports').select('*').eq('user_id', userId);
+          if (medReports) pawCache.medicalReports = medReports;
+        } catch (e) {
+          console.error("Failed to fetch medical data", e);
+        }
+
 
         // ONE-TIME PURGE OF DUMMY DATA - uses session flag (safe for USE_SUPABASE_ONLY mode)
         if (!_dummyPurgedThisSession && !localStorage.getItem('dummy_purged_v4')) {
@@ -753,22 +766,26 @@ const USE_SUPABASE_ONLY = true;
     }
 
     async function savePets(pets) {
-      pawCache.pets = pets;
-      (!USE_SUPABASE_ONLY && localStorage.setItem('pawPets', JSON.stringify(pets)));
-      if (!window.supabaseClient || !currentUser) return;
+      if (!window.supabaseClient || !currentUser) {
+        pawCache.pets = pets;
+        (!USE_SUPABASE_ONLY && localStorage.setItem('pawPets', JSON.stringify(pets)));
+        return true;
+      }
+      
       const userId = currentUser.id;
+      let success = true;
       try {
         const { data: dbPets, error: fetchErr } = await window.supabaseClient.from('pets').select('id').eq('user_id', userId);
         if (!fetchErr && dbPets) {
           const activeIds = pets.map(p => p.id).filter(id => id);
           const deletedIds = dbPets.filter(p => !activeIds.includes(p.id)).map(p => p.id);
           if (deletedIds.length > 0) {
-            await window.supabaseClient.from('pets').delete().in('id', deletedIds);
+            const { error: delErr } = await window.supabaseClient.from('pets').delete().in('id', deletedIds);
+            if (delErr) { console.error('Delete error:', delErr); success = false; }
           }
         }
         for (let i = 0; i < pets.length; i++) {
           const p = pets[i];
-          // Only include columns that actually exist in the pets table schema
           const payload = {
             user_id: userId,
             name: p.name,
@@ -788,23 +805,30 @@ const USE_SUPABASE_ONLY = true;
             water_today: p.waterDrops ? p.waterDrops.length : parseFloat(p.waterToday || 0),
             water_date: p.waterDate || '',
             mood_today: p.moodToday || '',
-            mood_date: p.moodDate || ''
+            mood_date: p.moodDate || '',
+            household_id: currentHouseholdId
           };
           if (p.id) payload.id = p.id;
-          const { data, error } = await window.supabaseClient.from('pets').upsert({...payload, household_id: currentHouseholdId}).select('id').single();
+          const { data, error } = await window.supabaseClient.from('pets').upsert(payload).select('id').single();
           if (error) {
             console.error('Error saving pet to Supabase:', error.message, payload);
+            success = false;
+            showToast('Error syncing pet ' + p.name + ' to cloud.');
           } else if (data) {
             p.id = data.id;
-            // Update local cache with the assigned ID
             pets[i] = p;
           }
         }
-        // Save updated pets (with IDs) back to localStorage
-        (!USE_SUPABASE_ONLY && localStorage.setItem('pawPets', JSON.stringify(pets)));
-        pawCache.pets = pets;
+        
+        if (success) {
+          pawCache.pets = pets;
+          (!USE_SUPABASE_ONLY && localStorage.setItem('pawPets', JSON.stringify(pets)));
+        }
+        return success;
       } catch (err) {
         console.error("Error syncing pets to Supabase:", err);
+        showToast('Network error while saving pet.');
+        return false;
       }
     }
 
@@ -928,7 +952,6 @@ const USE_SUPABASE_ONLY = true;
     async function initApp() {
       loadLocalCache();
       await loadReferenceDatasets();
-      // Apply dark mode
       const s = getSettings();
       if (s.darkMode) {
         document.documentElement.setAttribute('data-theme', 'dark');
@@ -943,18 +966,12 @@ const USE_SUPABASE_ONLY = true;
           if (session) {
             currentUser = session.user;
             if (window.initPushNotifications) window.initPushNotifications(currentUser.id);
+            
+            // Sync with cloud BEFORE showing UI
+            await fetchAllDataFromSupabase();
             loadApp();
             if (s.reminders) startAllReminders();
-            // Sync with cloud in background
-            fetchAllDataFromSupabase().then(() => {
-              refreshAllUI();
-              initCalendar();
-            });
-            
-            // Setup Supabase Realtime for Community Feed
             setupRealtimeSubscriptions();
-            
-            return;
             return;
           }
         } catch (e) {
@@ -962,26 +979,21 @@ const USE_SUPABASE_ONLY = true;
         }
       }
 
-      const storedLocalUser = localStorage.getItem('pawfeedCurrentUser');
-      if (storedLocalUser) {
-        try {
-          currentUser = JSON.parse(storedLocalUser);
-          if (window.initPushNotifications) window.initPushNotifications(currentUser.id);
-          loadApp();
-          if (s.reminders) startAllReminders();
-          if (window.supabaseClient) {
-            fetchAllDataFromSupabase().then(() => {
-              refreshAllUI();
-              initCalendar();
-            });
-            setupRealtimeSubscriptions();
-          } else {
+      // Local mock auth fallback (only if USE_SUPABASE_ONLY is false)
+      if (!USE_SUPABASE_ONLY) {
+        const storedLocalUser = localStorage.getItem('pawfeedCurrentUser');
+        if (storedLocalUser) {
+          try {
+            currentUser = JSON.parse(storedLocalUser);
+            if (window.initPushNotifications) window.initPushNotifications(currentUser.id);
+            loadApp();
+            if (s.reminders) startAllReminders();
             refreshAllUI();
             initCalendar();
+            return;
+          } catch (e) {
+            console.error("Failed to parse local auth:", e);
           }
-          return;
-        } catch (e) {
-          console.error("Failed to parse local auth:", e);
         }
       }
 
@@ -1200,11 +1212,6 @@ const USE_SUPABASE_ONLY = true;
         return;
       }
 
-      if (findStoredAuthUser(email)) {
-        showToast('This email is already registered. Please use a different email or log in instead.');
-        return;
-      }
-      
       // Strong password validation
       const strongPasswordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
       if (!strongPasswordRegex.test(password)) {
@@ -1225,7 +1232,7 @@ const USE_SUPABASE_ONLY = true;
           });
 
           if (error) {
-            if (findStoredAuthUser(email) || (error.message || '').toLowerCase().includes('already registered') || (error.message || '').toLowerCase().includes('already exists')) {
+            if ((error.message || '').toLowerCase().includes('already registered') || (error.message || '').toLowerCase().includes('already exists')) {
               showToast('This email is already registered. Please use a different email or log in instead.');
             } else {
               showToast('Unable to register this email. Please use a valid email address.');
@@ -1238,8 +1245,6 @@ const USE_SUPABASE_ONLY = true;
             return;
           }
 
-          createStoredAuthUser(name, email, password);
-
           const { error: profileError } = await window.supabaseClient.from('user_profiles').upsert({
             id: data.user.id,
             settings: {},
@@ -1248,16 +1253,26 @@ const USE_SUPABASE_ONLY = true;
           if (profileError) {
             console.warn('Profile creation warning:', profileError.message);
           }
+          
+          showToast('Registration successful! You can now log in.');
+          showScreen('loginScreen');
+          return;
         } catch (err) {
           showToast('Unable to register this email. Please try again.');
           return;
         }
-      } else {
-        createStoredAuthUser(name, email, password);
       }
 
-      showToast('Registration successful! You can now log in.');
-      showScreen('loginScreen');
+      // Local mock auth fallback
+      if (!USE_SUPABASE_ONLY) {
+        if (findStoredAuthUser(email)) {
+          showToast('This email is already registered. Please use a different email or log in instead.');
+          return;
+        }
+        createStoredAuthUser(name, email, password);
+        showToast('Registration successful! You can now log in.');
+        showScreen('loginScreen');
+      }
     }
 
     async function loginUser() {
@@ -1283,53 +1298,45 @@ const USE_SUPABASE_ONLY = true;
       }
       
       showToast("Logging in... 🐾");
-      const storedUser = findStoredAuthUser(email);
-      if (storedUser && storedUser.password === password) {
-        currentUser = {
-          id: storedUser.id,
-          email: storedUser.email,
-          name: storedUser.name,
-          isLocalAuth: true
-        };
-        localStorage.setItem('pawfeedCurrentUser', JSON.stringify(currentUser));
-        if (window.initPushNotifications) window.initPushNotifications(currentUser.id);
-        loadApp();
-        if (window.supabaseClient) {
-          fetchAllDataFromSupabase().then(() => {
-            refreshAllUI();
-            initCalendar();
-          });
-        } else {
-          refreshAllUI();
-          initCalendar();
-        }
-        return;
-      }
 
-      if (!window.supabaseClient) {
-        showToast('Incorrect email or password.');
-        return;
-      }
-
-      try {
-        const { data, error } = await window.supabaseClient.auth.signInWithPassword({
-          email,
-          password
-        });
-        if (error) {
+      if (window.supabaseClient) {
+        try {
+          const { data, error } = await window.supabaseClient.auth.signInWithPassword({ email, password });
+          if (error) {
+            showToast('Incorrect email or password.');
+            return;
+          }
+          currentUser = data.user;
+          localStorage.setItem('pawfeedCurrentUser', JSON.stringify(currentUser));
+          if (window.initPushNotifications) window.initPushNotifications(currentUser.id);
+          
+          await fetchAllDataFromSupabase();
+          loadApp();
+          setupRealtimeSubscriptions();
+          return;
+        } catch (err) {
           showToast('Incorrect email or password.');
           return;
         }
+      }
 
-        currentUser = data.user;
-        localStorage.setItem('pawfeedCurrentUser', JSON.stringify(currentUser));
-        if (window.initPushNotifications) window.initPushNotifications(currentUser.id);
-        loadApp();
-        fetchAllDataFromSupabase().then(() => {
+      // Local mock auth fallback
+      if (!USE_SUPABASE_ONLY) {
+        const storedUser = findStoredAuthUser(email);
+        if (storedUser && storedUser.password === password) {
+          currentUser = {
+            id: storedUser.id,
+            email: storedUser.email,
+            name: storedUser.name,
+            isLocalAuth: true
+          };
+          localStorage.setItem('pawfeedCurrentUser', JSON.stringify(currentUser));
+          if (window.initPushNotifications) window.initPushNotifications(currentUser.id);
+          loadApp();
           refreshAllUI();
           initCalendar();
-        });
-      } catch (err) {
+          return;
+        }
         showToast('Incorrect email or password.');
       }
     }
@@ -1759,16 +1766,19 @@ const USE_SUPABASE_ONLY = true;
       openTab('home');
     }
 
-    function deletePet(idx) {
-      const pets = getPets();
+    async function deletePet(idx) {
+      const pets = JSON.parse(JSON.stringify(getPets())); // Deep copy
       const name = pets[idx]?.name || 'this pet';
-      showConfirm('Remove ' + name + '?', 'All data for ' + name + ' will be removed.', () => {
+      showConfirm('Remove ' + name + '?', 'All data for ' + name + ' will be removed.', async () => {
         pets.splice(idx, 1);
-        savePets(pets);
-        const activeIdx = getActivePetIdx();
-        if (activeIdx >= pets.length) setActivePetIdx(Math.max(0, pets.length - 1));
-        refreshAllUI();
-        showToast(name + ' removed');
+        showToast('Deleting from cloud... 🐾');
+        const success = await savePets(pets);
+        if (success) {
+          const activeIdx = getActivePetIdx();
+          if (activeIdx >= pets.length) setActivePetIdx(Math.max(0, pets.length - 1));
+          refreshAllUI();
+          showToast(name + ' removed');
+        }
       });
     }
 
@@ -2238,8 +2248,8 @@ const USE_SUPABASE_ONLY = true;
       });
     }
 
-    function completePlannerTask(taskId, dateStr) {
-      const tasks = getCareTasks();
+    async function completePlannerTask(taskId, dateStr) {
+      const tasks = JSON.parse(JSON.stringify(getCareTasks())); // Deep copy
       const task = tasks.find(t => String(t.id) === String(taskId));
       if (!task) return;
 
@@ -2247,39 +2257,17 @@ const USE_SUPABASE_ONLY = true;
       if (!task.completedDates.includes(dateStr)) {
         task.completedDates.push(dateStr);
 
-        // Log task in history
-        const log = getLog();
-        const activeIdx = getActivePetIdx();
-        const pets = getPets();
-        const pet = pets[activeIdx] || { name: 'your pet' };
-
-        let type = 'care';
-        if (task.title.toLowerCase().includes('feed')) {
-          type = 'fed';
-        } else if (task.title.toLowerCase().includes('water')) {
-          type = 'water';
-          if (!pet.waterDrops) pet.waterDrops = [];
-          if (pet.waterDate !== dateStr) {
-            pet.waterDate = dateStr;
-            pet.waterDrops = [];
-          }
-          const totalDrops = Math.ceil((pet.waterGoal || 500) / 100);
-          if (pet.waterDrops.length < totalDrops) {
-            pet.waterDrops.push(pet.waterDrops.length);
-            savePets(pets);
-          }
-        }
-
+        let log = getLog();
         log.unshift({
-          id: 'log_' + Date.now(),
-          petIdx: activeIdx,
-          type: type,
+          id: Date.now(),
+          type: 'task',
           note: `Completed task: ${task.title}`,
+          petIdx: task.petIdx,
+          petName: pawCache.pets[task.petIdx]?.name || 'Unknown Pet',
           timestamp: new Date().toISOString()
         });
         saveLog(log);
 
-        // Auto stock deduction for completed planner tasks
         if (typeof deductStockAutomatically === 'function') {
           const isMed = task.title.toLowerCase().includes('med') || task.title.toLowerCase().includes('pill') || task.title.toLowerCase().includes('syrup') || task.title.toLowerCase().includes('dose');
           deductStockAutomatically(task.title, isMed ? 'medicine' : 'food');
@@ -2290,8 +2278,15 @@ const USE_SUPABASE_ONLY = true;
         task.completed = true;
       }
 
-      saveCareTasks(tasks);
-      showToast(`Task "${task.title}" completed! ✅`);
+      showToast('Syncing task to cloud... 🐾');
+      const success = await saveCareTasks(tasks);
+      
+      if (!success) {
+        showToast('Failed to sync task completion.');
+        return;
+      }
+      
+      showToast(`Task "${task.title}" completed! ✨`);
 
       // Streak trigger
       const activeIdx = getActivePetIdx();
@@ -2306,24 +2301,22 @@ const USE_SUPABASE_ONLY = true;
         if (!todayFed) {
           log.unshift({
             id: 'log_' + Date.now() + '_streak',
+            type: 'streak',
+            note: 'All daily tasks completed!',
             petIdx: activeIdx,
-            type: 'fed',
-            note: 'All Care Planner tasks completed! 🏆',
+            petName: pawCache.pets[activeIdx]?.name || 'Unknown',
             timestamp: new Date().toISOString()
           });
           saveLog(log);
+          showConfetti();
         }
-
-        setTimeout(() => {
-          showConfirm('🏆 Streak Increased!', `Wonderful! You completed all scheduled tasks for today! Your daily care streak has increased to ${calculateStreak()} days! 🔥`, null);
-        }, 300);
       }
 
       refreshAllUI();
     }
 
-    function uncompletePlannerTask(taskId, dateStr) {
-      const tasks = getCareTasks();
+    async function uncompletePlannerTask(taskId, dateStr) {
+      const tasks = JSON.parse(JSON.stringify(getCareTasks())); // Deep copy
       const task = tasks.find(t => String(t.id) === String(taskId));
       if (!task) return;
 
@@ -2334,7 +2327,13 @@ const USE_SUPABASE_ONLY = true;
         task.completed = false;
       }
 
-      saveCareTasks(tasks);
+      showToast('Syncing to cloud... 🐾');
+      const success = await saveCareTasks(tasks);
+      
+      if (!success) {
+        showToast('Failed to revert task.');
+        return;
+      }
 
       let log = getLog();
       const idx = log.findIndex(e => e.petIdx === task.petIdx && e.timestamp.slice(0, 10) === dateStr && e.note === `Completed task: ${task.title}`);
@@ -3908,73 +3907,121 @@ const USE_SUPABASE_ONLY = true;
       const caption = document.getElementById('communityCaption').value.trim();
       if (!caption && !selectedCommunityImageFile) { showToast('Add a caption or photo first'); return; }
       
+      const user = currentUser || { name: 'Pet Parent' };
+      const active = pawCache.pets[getActivePetIdx()];
+      
       let imageUrl = null;
       if (selectedCommunityImageFile && window.supabaseClient) {
-        showToast('Uploading photo... ☁️');
+        showToast('Uploading photo... 🐾');
         try {
           const fileExt = selectedCommunityImageFile.name.split('.').pop();
-          const fileName = `${Date.now()}.${fileExt}`;
+          const fileName = `${currentUser?.id || 'public'}/${Date.now()}.${fileExt}`;
           const { data, error } = await window.supabaseClient.storage
             .from('community-media')
-            .upload(`public/${fileName}`, selectedCommunityImageFile);
+            .upload(fileName, selectedCommunityImageFile);
           
           if (!error) {
             const { data: urlData } = window.supabaseClient.storage
               .from('community-media')
-              .getPublicUrl(`public/${fileName}`);
+              .getPublicUrl(fileName);
             imageUrl = urlData.publicUrl;
           } else {
-            // Bucket may not exist - fallback to base64 for local preview
-            console.warn("Supabase Storage upload failed, using local image:", error.message);
-            imageUrl = selectedCommunityImage; // base64 fallback
+            console.error("Storage upload error", error);
+            imageUrl = selectedCommunityImage; // fallback to base64 if bucket fails
           }
-        } catch (uploadErr) {
-          console.warn("Image upload exception, using local fallback:", uploadErr);
+        } catch (err) {
+          console.error(err);
           imageUrl = selectedCommunityImage;
         }
-      } else if (selectedCommunityImage) {
-        imageUrl = selectedCommunityImage; // fallback to base64 if offline/no supabase
       }
 
-
-      const user = getUser() || { name: 'Pet Parent' };
-      const pets = getPets();
-      const active = pets[getActivePetIdx()] || pets[0] || null;
-      const posts = getCommunityPosts();
+      showToast('Posting to community... 🐾');
       
-      const newPost = { 
-        id: Date.now(), 
-        type, 
-        caption, 
-        image: imageUrl, 
-        author: user.name || 'Pet Parent', 
-        petName: active ? active.name : 'Pet', 
-        petAvatar: active ? active.avatar : '', 
-        petIcon: active ? (PET_ICONS[active.type] || '🐾') : '🐾', 
-        likes: 0, 
-        date: new Date().toISOString() 
-      };
-      posts.unshift(newPost);
-      
-      await saveCommunityPosts(posts.slice(0, 60));
+      if (window.supabaseClient && currentUser) {
+        const { data, error } = await window.supabaseClient.from('community_posts').insert({
+          user_id: currentUser.id,
+          content: caption,
+          image_url: imageUrl
+          // Ignoring type, author_name, likes, etc because they may not be in schema
+        }).select().single();
+        
+        if (error) {
+          showToast('Failed to post to cloud.');
+          console.error(error);
+          return;
+        }
+        
+        // Populate local-only fields for immediate display
+        const displayData = {
+          ...data,
+          type: type,
+          author: user.name || 'Pet Parent',
+          petName: active ? active.name : 'Pet',
+          petAvatar: active ? active.avatar : '',
+          petIcon: active ? (PET_ICONS[active.type] || '🐶') : '🐶',
+          likes: 0
+        };
+        
+        const posts = getCommunityPosts();
+        posts.unshift(displayData);
+        pawCache.communityPosts = posts;
+      } else {
+        const posts = getCommunityPosts();
+        const newPost = { 
+          id: Date.now(), 
+          type, 
+          caption, 
+          image: imageUrl, 
+          author: user.name || 'Pet Parent', 
+          petName: active ? active.name : 'Pet', 
+          petAvatar: active ? active.avatar : '', 
+          petIcon: active ? (PET_ICONS[active.type] || '🐶') : '🐶', 
+          likes: 0, 
+          date: new Date().toISOString() 
+        };
+        posts.unshift(newPost);
+        pawCache.communityPosts = posts;
+        (!USE_SUPABASE_ONLY && localStorage.setItem('pawCommunityPosts', JSON.stringify(posts)));
+      }
       
       selectedCommunityImage = '';
       selectedCommunityImageFile = null;
       document.getElementById('communityCaption').value = '';
       document.getElementById('communityPhotoPreview').innerHTML = '';
       document.getElementById('communityPhotoInput').value = '';
-      showToast('Posted to community 👥');
+      showToast('Posted to community ✨');
       renderCommunity();
     }
-    function likeCommunityPost(id) {
+    async function likeCommunityPost(id) {
       const posts = getCommunityPosts();
       const p = posts.find(x => x.id === id);
-      if (p) p.likes = (p.likes || 0) + 1;
-      saveCommunityPosts(posts); renderCommunity();
+      if (p) {
+        p.likes = (p.likes || 0) + 1;
+        renderCommunity();
+        
+        if (window.supabaseClient && currentUser) {
+            // Attempt to update likes in DB if the column exists, catch silently if it fails.
+            window.supabaseClient.from('community_posts').update({ likes: p.likes }).eq('id', id).then(({error}) => {
+                if (error) console.warn("Likes column might not exist:", error.message);
+            });
+        }
+      }
     }
-    function deleteCommunityPost(id) {
-      saveCommunityPosts(getCommunityPosts().filter(p => p.id !== id));
-      renderCommunity(); showToast('Post removed');
+    async function deleteCommunityPost(id) {
+      showToast('Deleting post... 🐾');
+      if (window.supabaseClient && currentUser) {
+        const { error } = await window.supabaseClient.from('community_posts').delete().eq('id', id);
+        if (error) {
+          console.error(error);
+          showToast('Failed to delete post.');
+          return;
+        }
+      }
+      const posts = getCommunityPosts().filter(p => p.id !== id);
+      pawCache.communityPosts = posts;
+      (!USE_SUPABASE_ONLY && localStorage.setItem('pawCommunityPosts', JSON.stringify(posts)));
+      renderCommunity(); 
+      showToast('Post removed');
     }
     function seedCommunityDemo() {
       const posts = getCommunityPosts();
@@ -8098,31 +8145,28 @@ window.editMedicalRecord = window.openMedicalRecordModal;
 window.saveMedicalRecord = async function() {
     if (!currentUser) return showToast("Must be logged in.");
     const id = document.getElementById('medRecordId').value;
-    const petIdx = getActivePetIdx();
-    const pet = getPets()[petIdx];
-    if (!pet) return showToast("No pet selected.");
+    const isNew = !id;
     
     const payload = {
         user_id: currentUser.id,
-        pet_id: pet.id,
+        pet_id: pawCache.pets[getActivePetIdx()].id,
         record_type: document.getElementById('medRecordType').value,
-        vaccine_name: document.getElementById('medRecordTitle').value,
+        vaccine_name: document.getElementById('medRecordTitle').value.trim(),
         date: document.getElementById('medRecordDate').value,
-        next_due_date: document.getElementById('medRecordNextDue').value || null,
-        clinic_name: document.getElementById('medRecordClinic').value,
-        notes: document.getElementById('medRecordNotes').value,
+        next_due_date: document.getElementById('medRecordNextDate').value || null,
+        clinic_name: document.getElementById('medRecordClinic').value.trim(),
+        reason: document.getElementById('medRecordReason').value.trim(),
+        notes: document.getElementById('medRecordNotes').value.trim(),
         status: document.getElementById('medRecordStatus').value
     };
-    if(document.getElementById('medRecordReason')) {
-        payload.reason = document.getElementById('medRecordReason').value;
-    }
-    if (id) payload.id = id;
+    
+    if (!isNew) payload.id = parseInt(id);
     
     if (!payload.date) return showToast("Date is required.");
     if (!payload.vaccine_name) return showToast("Title is required.");
     
-    showToast("Saving...");
-    const { data, error } = await window.supabaseClient.from('medical_records').upsert({...payload, household_id: currentHouseholdId}).select().single();
+    showToast("Saving to cloud... 🐾");
+    const { data, error } = await window.supabaseClient.from('medical_records').upsert(payload).select().single();
     if (error) {
         console.error(error);
         showToast("Error saving record.");
@@ -8136,8 +8180,9 @@ window.saveMedicalRecord = async function() {
         }
         closeMedicalRecordModal();
         renderMedicalRecordsBox();
-        showToast("Record saved successfully ✅");
+        showToast("Record saved successfully ✨");
     }
+}
 };
 
 window.deleteMedicalRecord = async function(id) {
@@ -8228,56 +8273,46 @@ window.closeMedicalReportModal = function() {
 window.uploadMedicalReport = async function() {
     if (!currentUser) return showToast("Must be logged in.");
     const petIdx = getActivePetIdx();
-    const pet = getPets()[petIdx];
-    if (!pet) return showToast("No pet selected.");
+    const pet = pawCache.pets[petIdx];
+    if (!pet || !pet.id) return showToast("No pet selected.");
     
-    const title = document.getElementById('medReportTitle').value;
+    const title = document.getElementById('medReportTitle').value.trim();
     const type = document.getElementById('medReportType').value;
-    const notes = document.getElementById('medReportNotes').value;
+    const date = document.getElementById('medReportDate').value;
+    const notes = document.getElementById('medReportNotes').value.trim();
     const fileInput = document.getElementById('medReportFile');
-    
-    if (!title) return showToast("Title is required.");
-    if (!fileInput.files || fileInput.files.length === 0) return showToast("Please select a file.");
-    
     const file = fileInput.files[0];
-    const fileName = `${currentUser.id}/${pet.id}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
     
-    const btn = document.getElementById('medReportSaveBtn');
-    const loading = document.getElementById('medReportUploading');
-    btn.disabled = true;
-    loading.style.display = 'block';
+    if (!title || !date || !file) return showToast("Title, date, and file are required.");
+    
+    showToast("Uploading report... 🐾");
     
     try {
-        // Convert file to ArrayBuffer to prevent Capacitor fetch issues
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${currentUser.id}/${pet.id}/${Date.now()}.${fileExt}`;
         const arrayBuffer = await file.arrayBuffer();
         
-        // Upload to Storage
-        const { data: uploadData, error: uploadError } = await window.supabaseClient.storage
+        const { error: uploadError } = await window.supabaseClient.storage
             .from('medical-reports')
             .upload(fileName, arrayBuffer, {
                 contentType: file.type,
-                upsert: false
+                upsert: true
             });
             
-        if (uploadError) {
-            console.error("Storage upload error details:", uploadError);
-            throw uploadError;
-        }
+        if (uploadError) throw uploadError;
         
-        // Get Public URL
-        const { data: publicUrlData } = window.supabaseClient.storage
+        const { data: { publicUrl } } = window.supabaseClient.storage
             .from('medical-reports')
             .getPublicUrl(fileName);
             
-        // Save to DB
         const payload = {
             user_id: currentUser.id,
             pet_id: pet.id,
-            title: title,
-            upload_date: new Date().toISOString().slice(0, 10),
+            title,
             report_type: type,
-            file_url: publicUrlData.publicUrl,
-            notes: notes
+            upload_date: date,
+            notes,
+            file_url: publicUrl
         };
         
         const { data: dbData, error: dbError } = await window.supabaseClient
@@ -8293,7 +8328,7 @@ window.uploadMedicalReport = async function() {
         
         closeMedicalReportModal();
         renderMedicalReportsBox();
-        showToast("Report uploaded successfully 📄✅");
+        showToast("Report uploaded successfully ✨");
     } catch (e) {
         console.error("Upload error:", e);
         showToast("Failed to upload report.");

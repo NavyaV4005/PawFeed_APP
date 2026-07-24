@@ -5,8 +5,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="description"
-    content="PawFeed — AI-powered pet care app for feeding schedules, health tracking, and more." />
+  <meta name="description" content="PawFeed — AI-powered pet care app for feeding schedules, health tracking, and more." />
+  <meta name="keywords" content="pet care, dog, cat, feeding schedule, pet health, pet tracker, SaaS, responsive dashboard" />
+  <meta name="author" content="PawFeed" />
+  <meta property="og:title" content="PawFeed — The Modern Pet Care Platform" />
+  <meta property="og:description" content="AI-powered pet care platform for feeding schedules, health tracking, homemade recipes, and community." />
+  <meta property="og:type" content="website" />
   <title>PawFeed — AI Pet Care App</title>
 
   <!-- Google Fonts: Nunito + Poppins -->
@@ -497,19 +501,63 @@
     </div>
 
     <!-- MAIN APP -->
-    <div id="mainApp" class="hidden">
-      <div class="topbar">
-        <div>
-          <div class="top-title">PawFeed 🐾</div>
-          <small id="topUser" style="color:var(--muted);font-size:13px">Welcome</small>
+    <div id="mainApp" class="hidden saas-layout">
+      
+      <!-- SAAS SIDEBAR -->
+      <nav class="saas-sidebar" id="saasSidebar">
+        <div class="sidebar-brand">
+          <div class="logo">🐾</div>
+          <h2>PawFeed</h2>
         </div>
-        <div class="top-actions">
-          <button class="dark-toggle" onclick="toggleCalendar()" id="calendarBtn" title="Open Calendar"
-            style="font-size:16px">🗓️</button>
-          <button class="dark-toggle" onclick="toggleDarkMode()" id="darkToggleBtn" title="Toggle dark mode">🌙</button>
-          <div class="profile-circle" onclick="openTab('profile')" id="topProfileCircle">👤</div>
+        <div class="sidebar-nav">
+          <div class="nav-item active" id="nav-home" onclick="openTab('home')">
+            <span class="icon">🏠</span> <span class="nav-text">Dashboard</span>
+          </div>
+          <div class="nav-item" id="nav-careplanner" onclick="openTab('careplanner')">
+            <span class="icon">🗓️</span> <span class="nav-text">Care Planner</span>
+          </div>
+          <div class="nav-item" id="nav-homemade" onclick="openTab('homemade')">
+            <span class="icon">🍳</span> <span class="nav-text">Food Studio</span>
+          </div>
+          <div class="nav-item" id="nav-combo-social" onclick="openCombo('social','records')">
+            <span class="icon">🏥</span> <span class="nav-text">Health & Social</span>
+          </div>
+          <div class="nav-item" id="nav-ai" onclick="openTab('ai')">
+            <span class="icon">🤖</span> <span class="nav-text">PawFeed AI</span>
+          </div>
+          <div class="nav-item" id="nav-market" onclick="openTab('market')">
+            <span class="icon">🛒</span> <span class="nav-text">Marketplace</span>
+          </div>
         </div>
-      </div>
+      </nav>
+
+      <!-- SAAS MAIN CONTENT WRAPPER -->
+      <div class="saas-main-wrapper">
+        
+        <!-- SAAS TOP NAVBAR -->
+        <header class="saas-topbar">
+          <div class="topbar-left">
+            <button class="menu-toggle" onclick="document.getElementById('saasSidebar').classList.toggle('open')">☰</button>
+            <div class="breadcrumb" id="topBreadcrumb">Dashboard</div>
+          </div>
+          <div class="topbar-right">
+            <button class="dark-toggle" onclick="toggleCalendar()" id="calendarBtn" title="Open Calendar">🗓️</button>
+            <button class="dark-toggle" onclick="toggleDarkMode()" id="darkToggleBtn" title="Toggle dark mode">🌙</button>
+            <div class="profile-dropdown">
+              <div class="profile-circle" id="topProfileCircle" onclick="document.getElementById('profileMenu').classList.toggle('hidden')">👤</div>
+              <div class="dropdown-menu hidden" id="profileMenu">
+                <div class="dropdown-header">
+                  <strong id="topUser">Welcome</strong>
+                </div>
+                <div class="dropdown-item" onclick="openTab('profile'); document.getElementById('profileMenu').classList.add('hidden')">⚙️ Settings & Profile</div>
+                <div class="dropdown-item" onclick="logoutUser()">🚪 Logout</div>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <!-- SAAS PAGE CONTENT -->
+        <main class="saas-content-area">
 
       <!-- CALENDAR DROPDOWN -->
       <div id="calendarDropdown"
@@ -1342,24 +1390,7 @@
         </div>
       </div>
 
-      <!-- BOTTOM NAV -->
-      <div class="bottom-nav">
-        <div class="nav-item active" id="nav-home" onclick="openTab('home')">
-          <div>🏠</div>Home
-        </div>
-        <div class="nav-item" id="nav-careplanner" onclick="openTab('careplanner')">
-          <div>🗓️</div>Planner
-        </div>
-        <div class="nav-item" id="nav-combo-social" onclick="openCombo('social','records')">
-          <div>👥</div>Social
-        </div>
-        <div class="nav-item" id="nav-homemade" onclick="openTab('homemade')">
-          <div>🍳</div>Food
-        </div>
-        <div class="nav-item" id="nav-ai" onclick="openTab('ai')">
-          <div>🤖</div>AI
-        </div>
-
+        </main>
       </div>
     </div>
   </div>

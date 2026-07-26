@@ -16,48 +16,11 @@ const USE_SUPABASE_ONLY = true;
     // ==================== DATA ====================
     const BREEDS = {
       Dog: ['Labrador', 'Pug', 'Beagle', 'German Shepherd', 'Golden Retriever', 'Shih Tzu', 'Doberman', 'Rottweiler', 'Husky', 'Dachshund'],
-      Cat: [
-        'Abyssinian','American Bobtail','American Curl','American Shorthair','Balinese',
-        'Bengal','Birman','Bombay','British Shorthair','Burmese',
-        'Cornish Rex','Devon Rex','Egyptian Mau','Exotic Shorthair','Himalayan',
-        'Japanese Bobtail','Khao Manee','LaPerm','Maine Coon','Manx',
-        'Munchkin','Norwegian Forest Cat','Ocicat','Oriental','Persian',
-        'Ragamuffin','Ragdoll','Russian Blue','Scottish Fold','Siamese',
-        'Siberian','Singapura','Snowshoe','Somali','Sphynx',
-        'Thai','Tonkinese','Toyger','Turkish Angora','Turkish Van'
-      ],
-      Rabbit: [
-        'Holland Lop','Lionhead','Dutch Rabbit','Mini Rex','Flemish Giant',
-        'Angora','New Zealand White','Californian Rabbit','Rex Rabbit','Himalayan Rabbit',
-        'American Fuzzy Lop','Belgian Hare','Britannia Petite','Checkered Giant','Chinchilla Rabbit',
-        'Cinnamon Rabbit','Cottontail','English Angora','English Lop','English Spot',
-        'French Lop','Giant Angora','Giant Chinchilla','Harlequin Rabbit','Jersey Wooly',
-        'Mini Lop','Mini Satin','Netherland Dwarf','Palomino Rabbit','Polish Rabbit'
-      ],
-      Bird: [
-        'African Grey Parrot','Amazon Parrot','Budgerigar (Budgie)','Caique','Canary',
-        'Cockatiel','Cockatoo','Conure (Green-cheeked)','Conure (Sun)','Diamond Dove',
-        'Eclectus Parrot','Finch','Gouldian Finch','Hyacinth Macaw','Indian Ringneck Parakeet',
-        'Lovebird','Macaw (Blue & Gold)','Macaw (Scarlet)','Monk Parakeet','Mourning Dove',
-        'Mynah Bird','Nanday Conure','Parrotlet','Pionus Parrot','Quaker Parrot',
-        'Rainbow Lorikeet','Red-fronted Macaw','Rosella','Senegal Parrot','Society Finch'
-      ],
-      Fish: [
-        'Angelfish','Arowana','Betta','Black Moor Goldfish','Blue Tang',
-        'Clownfish','Danio','Discus','Fantail Goldfish','Flowerhorn',
-        'Flying Fox','Goldfish','Gourami','Guppy','Jewel Cichlid',
-        'Koi','Loach','Molly','Neon Tetra','Oscar',
-        'Parrot Cichlid','Pleco','Rainbowfish','Red-tailed Black Shark','Rummy-Nose Tetra',
-        'Severum','Silver Dollar','Sword Tail','Tiger Barb','Zebra Danio'
-      ],
-      Hamster: [
-        'Syrian Hamster','Dwarf Winter White Russian','Roborovski Dwarf','Chinese Hamster','Campbell\'s Dwarf',
-        'European Hamster','Turkish Hamster','Romanian Hamster','Armenian Hamster','Tibetan Dwarf Hamster',
-        'Gansu Hamster','Mongolian Hamster','Striped Dwarf Hamster','Greater Long-tailed Hamster','Lesser Long-tailed Hamster',
-        'Ladak Hamster','Eversmann\'s Hamster','Migratory Hamster','Short-tailed Hamster','Sokolov\'s Hamster',
-        'Black-bellied Hamster','Gray Hamster','Brandt\'s Hamster','Turkish Hamster','Ciscaucasian Hamster',
-        'Kazakh Hamster','Dzhungarian Hamster','Pale Dwarf Hamster','Siberian Hamster','Golden Hamster'
-      ]
+      Cat: ['Persian', 'Siamese', 'Bengal', 'Maine Coon', 'Ragdoll', 'British Shorthair', 'Sphynx', 'Abyssinian'],
+      Rabbit: ['Holland Lop', 'Lionhead', 'Dutch Rabbit', 'Mini Rex', 'Flemish Giant', 'Angora'],
+      Bird: ['Parrot', 'Budgie', 'Cockatiel', 'Lovebird', 'Canary', 'Macaw'],
+      Fish: ['Goldfish', 'Betta', 'Guppy', 'Angelfish', 'Molly', 'Koi', 'Oscar', 'Tetra'],
+      Hamster: ['Syrian Hamster', 'Dwarf Hamster', 'Roborovski Hamster', 'Chinese Hamster', 'Campbell Hamster']
     };
     const UNSAFE = {
       Dog: ['Chocolate', 'Grapes / Raisins', 'Onion & Garlic', 'Alcohol', 'Caffeine', 'Macadamia Nuts', 'Xylitol (sweetener)', 'Avocado'],
@@ -102,72 +65,31 @@ const USE_SUPABASE_ONLY = true;
       }
     }
 
-    const DOG_BREEDS = [
-      "Affenpinscher","Afghan Hound","Airedale Terrier","Akita","Alaskan Malamute",
-      "American Bulldog","American Cocker Spaniel","American Eskimo Dog","American Foxhound",
-      "American Pit Bull Terrier","American Staffordshire Terrier","American Water Spaniel",
-      "Anatolian Shepherd Dog","Australian Cattle Dog","Australian Kelpie","Australian Shepherd",
-      "Australian Silky Terrier","Australian Terrier","Azawakh","Basenji","Basset Hound",
-      "Beagle","Bearded Collie","Bedlington Terrier","Belgian Malinois","Belgian Sheepdog",
-      "Belgian Tervuren","Bergamasco","Berger Picard","Bernese Mountain Dog","Bichon Frise",
-      "Black and Tan Coonhound","Black Russian Terrier","Bloodhound","Bluetick Coonhound",
-      "Boerboel","Border Collie","Border Terrier","Borzoi","Boston Terrier","Bouvier des Flandres",
-      "Boxer","Boykin Spaniel","Bracco Italiano","Briard","Brittany","Brussels Griffon",
-      "Bull Terrier","Bulldog","Bullmastiff","Cairn Terrier","Canaan Dog","Cane Corso",
-      "Cardigan Welsh Corgi","Cavalier King Charles Spaniel","Cesky Terrier","Chesapeake Bay Retriever",
-      "Chihuahua","Chinese Crested","Chinese Shar-Pei","Chinook","Chow Chow","Clumber Spaniel",
-      "Cocker Spaniel","Collie","Coton de Tulear","Curly-Coated Retriever","Dachshund","Dalmatian",
-      "Dandie Dinmont Terrier","Doberman Pinscher","Dogo Argentino","Dutch Shepherd",
-      "English Cocker Spaniel","English Foxhound","English Setter","English Springer Spaniel",
-      "English Toy Spaniel","Entlebucher Mountain Dog","Field Spaniel","Finnish Lapphund",
-      "Finnish Spitz","Flat-Coated Retriever","French Bulldog","German Pinscher",
-      "German Shepherd Dog","German Shorthaired Pointer","German Wirehaired Pointer",
-      "Giant Schnauzer","Glen of Imaal Terrier","Golden Retriever","Gordon Setter",
-      "Great Dane","Great Pyrenees","Greater Swiss Mountain Dog","Greyhound","Hamiltonstovare",
-      "Harrier","Havanese","Hungarian Puli","Ibizan Hound","Icelandic Sheepdog",
-      "Indian Pariah Dog","Irish Red and White Setter","Irish Setter","Irish Terrier",
-      "Irish Water Spaniel","Irish Wolfhound","Italian Greyhound","Jack Russell Terrier",
-      "Japanese Chin","Japanese Spitz","Keeshond","Kerry Blue Terrier","Komondor","Kuvasz",
-      "Labrador Retriever","Lagotto Romagnolo","Lakeland Terrier","Leonberger",
-      "Lhasa Apso","Löwchen","Maltese","Manchester Terrier","Mastiff","Miniature Pinscher",
-      "Miniature Schnauzer","Mudi","Neapolitan Mastiff","Newfoundland","Norfolk Terrier",
-      "Norwegian Buhund","Norwegian Elkhound","Norwegian Lundehund","Norwich Terrier",
-      "Nova Scotia Duck Tolling Retriever","Old English Sheepdog","Otterhound","Papillon",
-      "Parson Russell Terrier","Pekingese","Pembroke Welsh Corgi","Perro de Presa Canario",
-      "Petit Basset Griffon Vendeen","Pharaoh Hound","Plott Hound","Pointer",
-      "Polish Lowland Sheepdog","Pomeranian","Poodle (Miniature)","Poodle (Standard)",
-      "Poodle (Toy)","Portuguese Podengo Pequeno","Portuguese Water Dog","Pug",
-      "Pulik","Pyrenean Shepherd","Rat Terrier","Redbone Coonhound","Rhodesian Ridgeback",
-      "Rottweiler","Russell Terrier","Saint Bernard","Saluki","Samoyed","Schipperke",
-      "Scottish Deerhound","Scottish Terrier","Sealyham Terrier","Shetland Sheepdog",
-      "Shiba Inu","Shih Tzu","Siberian Husky","Silky Terrier","Skye Terrier",
-      "Sloughi","Small Munsterlander Pointer","Soft Coated Wheaten Terrier","Spanish Water Dog",
-      "Spinone Italiano","Staffordshire Bull Terrier","Standard Schnauzer","Sussex Spaniel",
-      "Swedish Vallhund","Tibetan Mastiff","Tibetan Spaniel","Tibetan Terrier","Toy Fox Terrier",
-      "Treeing Walker Coonhound","Vizsla","Weimaraner","Welsh Springer Spaniel","Welsh Terrier",
-      "West Highland White Terrier","Whippet","Wire Fox Terrier","Wirehaired Pointing Griffon",
-      "Wirehaired Vizsla","Xoloitzcuintli","Yorkshire Terrier"
-    ].sort();
-
-    const CAT_BREEDS = [
-      "Abyssinian","American Bobtail","American Curl","American Shorthair","American Wirehair",
-      "Balinese","Bengal","Birman","Bombay","British Longhair","British Shorthair","Burmese",
-      "Burmilla","California Spangled","Chartreux","Chausie","Cornish Rex","Devon Rex",
-      "Egyptian Mau","European Burmese","Exotic Shorthair","Havana","Himalayan","Japanese Bobtail",
-      "Javanese","Khao Manee","Korat","Kurilian Bobtail","LaPerm","Maine Coon","Manx",
-      "Minskin","Munchkin","Nebelung","Norwegian Forest Cat","Ocicat","Oriental","Persian",
-      "Pixie-bob","Ragamuffin","Ragdoll","Russian Blue","Savannah","Scottish Fold",
-      "Selkirk Rex","Siamese","Siberian","Singapura","Snowshoe","Somali","Sphynx",
-      "Thai","Tonkinese","Toyger","Turkish Angora","Turkish Van"
-    ].sort();
-
     async function fetchBreedData(species) {
       if (species !== 'Dog' && species !== 'Cat') return [];
-      // Use hardcoded list first (instant, works offline)
-      const hardcoded = species === 'Dog' ? DOG_BREEDS : CAT_BREEDS;
-      const simplified = hardcoded.map(name => ({ id: name, name }));
-      breedCache[species] = simplified;
-      return simplified;
+      if (breedCache[species] && breedCache[species].length > 0) {
+        return breedCache[species];
+      }
+      try {
+        const url = species === 'Dog' 
+          ? 'https://api.thedogapi.com/v1/breeds' 
+          : 'https://api.thecatapi.com/v1/breeds';
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP status ${res.status}`);
+        const data = await res.json();
+        const simplified = data.map(b => ({
+          id: b.id,
+          name: b.name,
+          weight: b.weight ? b.weight.metric : '',
+          life_span: b.life_span || ''
+        }));
+        breedCache[species] = simplified;
+        (!USE_SUPABASE_ONLY && localStorage.setItem(`cached${species}Breeds`, JSON.stringify(simplified)));
+        return simplified;
+      } catch (err) {
+        console.error(`Failed to fetch breeds for ${species}:`, err);
+        return [];
+      }
     }
 
     function calculateFeedingAmount(pet) {
@@ -247,15 +169,9 @@ const USE_SUPABASE_ONLY = true;
       return context;
     }
 
-    // ── API_BASE_URL: auto-detect environment ──
-    // On Vercel (or any production host), use same-origin /api/* rewrites.
-    // Locally, fall back to the dev server on port 5000.
-    const API_BASE_URL = (
-      window.location.hostname === 'localhost' ||
-      window.location.hostname.startsWith('192.168') ||
-      window.location.hostname.startsWith('10.')
-    ) ? 'http://localhost:5000' : '';
-
+    // To test locally with your node server, uncomment the localhost line below:
+    // const API_BASE_URL = 'http://localhost:5000';
+    const API_BASE_URL = 'https://pawfeedmobile.onrender.com';
     let currentUser = null;
     let currentHouseholdId = null;
     let activePlanPet = 0;
@@ -352,7 +268,7 @@ const USE_SUPABASE_ONLY = true;
         if (hhDisplay) hhDisplay.value = currentHouseholdId;
 
         const [
-          petsRes, logsRes, stockRes, expensesRes, postsRes, tasksRes,
+          petsRes, logsRes, stockRes, expensesRes, postsRes, cartRes, scansRes, tasksRes, ordersRes,
           moodsRes, medsRes, vetsRes, sleepsRes, galleryRes, weightsRes, recipesRes
         ] = await Promise.all([
           window.supabaseClient.from('pets').select('*').eq('household_id', currentHouseholdId),
@@ -360,10 +276,13 @@ const USE_SUPABASE_ONLY = true;
           window.supabaseClient.from('stock_items').select('*').eq('household_id', currentHouseholdId),
           window.supabaseClient.from('expenses').select('*').eq('household_id', currentHouseholdId),
           window.supabaseClient.from('community_posts').select('*').order('id', { ascending: false }),
+          window.supabaseClient.from('cart_items').select('*').eq('user_id', userId),
+          window.supabaseClient.from('scan_history').select('*').eq('user_id', userId),
           window.supabaseClient.from('care_tasks').select('*').eq('household_id', currentHouseholdId),
+          window.supabaseClient.from('orders').select('*').eq('user_id', userId),
           window.supabaseClient.from('mood_logs').select('*').eq('household_id', currentHouseholdId),
-          window.supabaseClient.from('medical_records').select('*').eq('household_id', currentHouseholdId),
-          window.supabaseClient.from('medical_reports').select('*').eq('household_id', currentHouseholdId),
+          window.supabaseClient.from('meds').select('*').eq('household_id', currentHouseholdId),
+          window.supabaseClient.from('vet_logs').select('*').eq('household_id', currentHouseholdId),
           window.supabaseClient.from('sleep_logs').select('*').eq('household_id', currentHouseholdId),
           window.supabaseClient.from('pet_gallery').select('*').eq('household_id', currentHouseholdId),
           window.supabaseClient.from('weight_history').select('*').eq('household_id', currentHouseholdId),
@@ -447,15 +366,38 @@ const USE_SUPABASE_ONLY = true;
         }
 
         if (postsRes.data) {
-          pawCache.communityPosts = postsRes.data.map(p => {
-            if (p.payload && Object.keys(p.payload).length > 0) {
-              return { ...p.payload, dbId: p.id, user_id: p.user_id };
-            }
-            return { id: p.id, dbId: p.id, user_id: p.user_id, type: 'tip', caption: p.content || '', image: p.image_url, author: 'PawFeed User', likes: 0, date: p.created_at };
-          });
+          pawCache.communityPosts = postsRes.data.map(p => ({
+            id: p.id,
+            user: p.user_id === userId ? (currentUser.user_metadata?.display_name || 'Me') : 'Pet Parent',
+            avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=80&h=80',
+            content: p.content,
+            image: p.image_url,
+            time: p.created_at,
+            likes: 0,
+            comments: []
+          }));
         }
 
-        // (Cart, scan history, and orders removed — tabs no longer used)
+        if (cartRes.data) {
+          pawCache.cart = cartRes.data.map(c => ({
+            id: c.id,
+            product_id: c.product_id,
+            quantity: c.quantity
+          }));
+        }
+
+        if (scansRes.data) {
+          pawCache.scanHistory = scansRes.data.map(s => s.result);
+        }
+
+        if (ordersRes.data) {
+          pawCache.orders = ordersRes.data.map(o => ({
+            id: o.id,
+            date: o.date,
+            items: o.items,
+            total: parseFloat(o.total)
+          }));
+        }
 
         if (moodsRes.data) {
           pawCache.moodLog = moodsRes.data.map(m => {
@@ -469,10 +411,26 @@ const USE_SUPABASE_ONLY = true;
         }
 
         if (medsRes.data) {
-          pawCache.medicalRecords = medsRes.data;
+          pawCache.meds = medsRes.data.map(m => ({
+            id: m.id,
+            name: m.name,
+            dosage: m.dosage,
+            frequency: m.frequency,
+            nextDue: m.next_due
+          }));
         }
+
         if (vetsRes.data) {
-          pawCache.medicalReports = vetsRes.data;
+          pawCache.vetLog = vetsRes.data.map(v => {
+            const petIdx = pawCache.pets.findIndex(p => p.id === v.pet_id);
+            return {
+              id: v.id,
+              petIdx: petIdx >= 0 ? petIdx : 0,
+              date: v.date,
+              clinic: v.clinic,
+              notes: v.notes
+            };
+          });
         }
 
         if (sleepsRes.data) {
@@ -536,31 +494,18 @@ const USE_SUPABASE_ONLY = true;
         }
 
         if (tasksRes.data) {
-          // Deduplicate: multiple DB rows may exist for same logical task (string ID). Keep latest.
-          const seen = new Map();
-          // Sort ascending so the last (highest id = most recent) overwrites earlier ones
-          const sorted = [...tasksRes.data].sort((a, b) => a.id - b.id);
-          sorted.forEach(t => {
-            const petIdx = pawCache.pets.findIndex(p => p.id === t.pet_id);
-            let obj;
-            if (t.payload && Object.keys(t.payload).length > 0) {
-              obj = { ...t.payload, id: t.id, petIdx: petIdx >= 0 ? petIdx : (t.payload.petIdx || 0) };
-            } else {
-              obj = {
-                id: t.id,
-                petIdx: petIdx >= 0 ? petIdx : 0,
-                title: t.text,
-                completed: t.completed,
-                dateTime: t.date,
-                repeat: 'none',
-                completedDates: t.completed ? [] : []
-              };
+          pawCache.tasks = tasksRes.data.map(t => {
+            if (t.payload) {
+              return { ...t.payload, id: t.id };
             }
-            // Use the payload's original string ID as dedup key (or numeric id as fallback)
-            const dedupKey = (t.payload && t.payload.id) ? String(t.payload.id) : String(t.id);
-            seen.set(dedupKey, obj);
+            return {
+              id: t.id,
+              petIdx: 0,
+              title: t.text,
+              completed: t.completed,
+              dateTime: t.date
+            };
           });
-          pawCache.tasks = Array.from(seen.values());
         }
 
         // ONE-TIME PURGE OF DUMMY DATA - uses session flag (safe for USE_SUPABASE_ONLY mode)
@@ -663,6 +608,7 @@ const USE_SUPABASE_ONLY = true;
     let selectedLogMood = '';
     let galleryTargetPet = -1;
     let selectedCommunityImage = '';
+    let selectedVisionImage = '';
 
     // ==================== AI FEATURES HANDLERS ====================
     async function generateAIRecipe() {
@@ -997,12 +943,13 @@ const USE_SUPABASE_ONLY = true;
           if (session) {
             currentUser = session.user;
             if (window.initPushNotifications) window.initPushNotifications(currentUser.id);
-            // Sync with cloud BEFORE showing UI
-            await fetchAllDataFromSupabase();
             loadApp();
             if (s.reminders) startAllReminders();
-            refreshAllUI();
-            initCalendar();
+            // Sync with cloud in background
+            fetchAllDataFromSupabase().then(() => {
+              refreshAllUI();
+              initCalendar();
+            });
             
             // Setup Supabase Realtime for Community Feed
             setupRealtimeSubscriptions();
@@ -1020,16 +967,15 @@ const USE_SUPABASE_ONLY = true;
         try {
           currentUser = JSON.parse(storedLocalUser);
           if (window.initPushNotifications) window.initPushNotifications(currentUser.id);
+          loadApp();
+          if (s.reminders) startAllReminders();
           if (window.supabaseClient) {
-            await fetchAllDataFromSupabase();
-            loadApp();
-            if (s.reminders) startAllReminders();
-            refreshAllUI();
-            initCalendar();
+            fetchAllDataFromSupabase().then(() => {
+              refreshAllUI();
+              initCalendar();
+            });
             setupRealtimeSubscriptions();
           } else {
-            loadApp();
-            if (s.reminders) startAllReminders();
             refreshAllUI();
             initCalendar();
           }
@@ -1039,7 +985,7 @@ const USE_SUPABASE_ONLY = true;
         }
       }
 
-      showScreen('loginScreen');
+      showScreen('landingScreen');
     }
 
     // --- REALTIME SUBSCRIPTIONS ---
@@ -1053,12 +999,7 @@ const USE_SUPABASE_ONLY = true;
           // Instead of manually merging complex logic, we can just refetch all posts to ensure consistency
           const { data, error } = await window.supabaseClient.from('community_posts').select('*').order('id', { ascending: false });
           if (!error && data) {
-            pawCache.communityPosts = data.map(p => {
-              if (p.payload && Object.keys(p.payload).length > 0) {
-                return { ...p.payload, dbId: p.id, user_id: p.user_id };
-              }
-              return { id: p.id, dbId: p.id, user_id: p.user_id, type: 'tip', caption: p.content || '', image: p.image_url, author: 'PawFeed User', likes: 0, date: p.created_at };
-            });
+            pawCache.communityPosts = data;
             if (document.getElementById('communityFeedBox')) {
               renderCommunity();
             }
@@ -1092,31 +1033,21 @@ const USE_SUPABASE_ONLY = true;
           
           const { data, error } = await window.supabaseClient.from('care_tasks').select('*').eq('household_id', currentHouseholdId);
           if (!error && data) {
-            // Deduplicate: multiple DB rows may exist for same logical task (string ID). Keep latest.
-            const seen2 = new Map();
-            const sorted2 = [...data].sort((a, b) => a.id - b.id);
-            sorted2.forEach(t => {
+            pawCache.tasks = data.map(t => {
               const petIdx = pawCache.pets.findIndex(p => p.id === t.pet_id);
-              let obj;
-              if (t.payload && Object.keys(t.payload).length > 0) {
-                obj = { ...t.payload, id: t.id, petIdx: petIdx >= 0 ? petIdx : (t.payload.petIdx || 0) };
-              } else {
-                obj = {
-                  id: t.id,
-                  petIdx: petIdx >= 0 ? petIdx : 0,
-                  title: t.text,
-                  completed: t.completed,
-                  dateTime: t.date,
-                  repeat: 'none',
-                  completedDates: []
-                };
+              if (t.payload) {
+                return { ...t.payload, id: t.id, petIdx: petIdx >= 0 ? petIdx : 0 };
               }
-              const dedupKey = (t.payload && t.payload.id) ? String(t.payload.id) : String(t.id);
-              seen2.set(dedupKey, obj);
+              return {
+                id: t.id,
+                petIdx: petIdx >= 0 ? petIdx : 0,
+                title: t.text,
+                completed: t.completed,
+                dateTime: t.date
+              };
             });
-            pawCache.tasks = Array.from(seen2.values());
             if (document.getElementById('careplannerTab') && !document.getElementById('careplannerTab').classList.contains('hidden')) {
-               renderCarePlannerTab();
+               renderCarePlanner();
             }
           }
         })
@@ -1311,7 +1242,6 @@ const USE_SUPABASE_ONLY = true;
 
           const { error: profileError } = await window.supabaseClient.from('user_profiles').upsert({
             id: data.user.id,
-            household_id: data.user.id,
             settings: {},
             daily_checklist: {}
           });
@@ -1363,13 +1293,13 @@ const USE_SUPABASE_ONLY = true;
         };
         localStorage.setItem('pawfeedCurrentUser', JSON.stringify(currentUser));
         if (window.initPushNotifications) window.initPushNotifications(currentUser.id);
+        loadApp();
         if (window.supabaseClient) {
-          await fetchAllDataFromSupabase();
-          loadApp();
-          refreshAllUI();
-          initCalendar();
+          fetchAllDataFromSupabase().then(() => {
+            refreshAllUI();
+            initCalendar();
+          });
         } else {
-          loadApp();
           refreshAllUI();
           initCalendar();
         }
@@ -1394,11 +1324,11 @@ const USE_SUPABASE_ONLY = true;
         currentUser = data.user;
         localStorage.setItem('pawfeedCurrentUser', JSON.stringify(currentUser));
         if (window.initPushNotifications) window.initPushNotifications(currentUser.id);
-        await fetchAllDataFromSupabase();
-        initRealtimeSubscriptions();
         loadApp();
-        refreshAllUI();
-        initCalendar();
+        fetchAllDataFromSupabase().then(() => {
+          refreshAllUI();
+          initCalendar();
+        });
       } catch (err) {
         showToast('Incorrect email or password.');
       }
@@ -1406,11 +1336,6 @@ const USE_SUPABASE_ONLY = true;
 
     async function logoutUser() {
       showConfirm('Logout?', 'You will be returned to the login screen.', async () => {
-        // Cleanup real-time subscriptions
-        if (window._pawfeedChannel && window.supabaseClient) {
-          try { window.supabaseClient.removeChannel(window._pawfeedChannel); } catch(e) {}
-          window._pawfeedChannel = null;
-        }
         try {
           if (window.supabaseClient) {
             await window.supabaseClient.auth.signOut();
@@ -1445,129 +1370,20 @@ const USE_SUPABASE_ONLY = true;
       document.getElementById('forgotStep2').style.display = 'none';
       document.getElementById('forgotStep3').style.display = 'none';
     }
-    async function submitForgotPassword() {
-      const emailInput = document.getElementById('forgotEmail');
-      const email = emailInput.value.trim();
-      
+    function submitForgotPassword() {
+      const email = document.getElementById('forgotEmail').value.trim();
       if (!email) { showToast('Please enter your email'); return; }
-      if (!isValidEmailFormat(email)) {
-        showToast('Please enter a valid email address.');
-        return;
-      }
-      
-      const btn = document.querySelector('#forgotStep1 .primary-btn');
-      
-      const storedUser = findStoredAuthUser(email);
-      if (storedUser) {
-        document.getElementById('forgotModal').classList.add('hidden');
-        document.getElementById('updatePasswordModal').classList.remove('hidden');
-        window._localResetEmail = email;
-        showToast('Account found on this device. You can reset your password now.');
-        return;
-      }
-
-      if (window.supabaseClient) {
-        showToast('Sending reset link... ⏳');
-        if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
-        
-        let redirectUrl = 'pawfeed://login-callback';
-        if (!window.Capacitor || !window.Capacitor.isNativePlatform || !window.Capacitor.isNativePlatform()) {
-          redirectUrl = 'https://www-mauve-one.vercel.app/';
-        }
-        
-        const { data, error } = await window.supabaseClient.auth.resetPasswordForEmail(email, {
-          redirectTo: redirectUrl
-        });
-        
-        if (btn) { btn.disabled = false; btn.textContent = 'Find My Account'; }
-
-        if (error) {
-          let msg = error.message || '';
-          
-          if (msg.includes('rate limit')) {
-            msg = 'Too many requests. Please wait a moment before trying again.';
-          } else if (msg.toLowerCase().includes('google') || msg.toLowerCase().includes('oauth')) {
-            msg = "This account uses Google Sign-In. Use 'Continue with Google' to log in instead.";
-          } else if (msg === '{}' || msg === 'Not Found' || !msg) {
-            // Anti-enumeration: if they simply aren't found, pretend it succeeded.
-            document.getElementById('forgotStep1').style.display = 'none';
-            document.getElementById('forgotStep2').style.display = '';
-            return;
-          }
-          
-          document.getElementById('forgotStep1').style.display = 'none';
-          const errorText = document.getElementById('forgotErrorText');
-          if (errorText) errorText.textContent = msg;
-          document.getElementById('forgotStep3').style.display = '';
-        } else {
-          document.getElementById('forgotStep1').style.display = 'none';
-          document.getElementById('forgotStep2').style.display = '';
-        }
+      const user = getUser();
+      if (user && user.email.toLowerCase() === email.toLowerCase()) {
+        const hint = user.password.charAt(0) + '•'.repeat(Math.max(user.password.length - 2, 2)) + user.password.charAt(user.password.length - 1);
+        document.getElementById('forgotPasswordHint').innerHTML = `Your password hint: <span style="color:var(--orange);letter-spacing:2px">${hint}</span><br><small style="color:var(--muted);font-weight:400;font-size:12px;letter-spacing:0">Check your registered email for the full password.</small>`;
+        document.getElementById('forgotStep1').style.display = 'none';
+        document.getElementById('forgotStep2').style.display = '';
       } else {
-         showToast('Service unavailable');
+        document.getElementById('forgotStep1').style.display = 'none';
+        document.getElementById('forgotStep3').style.display = '';
       }
     }
-
-    window.closeUpdatePasswordModal = async function() {
-      document.getElementById('updatePasswordModal').classList.add('hidden');
-      if (window.supabaseClient) {
-        await window.supabaseClient.auth.signOut();
-        currentUser = null;
-        localStorage.removeItem('pawfeedCurrentUser');
-      }
-      showScreen('loginScreen');
-    };
-    
-    window.submitNewPassword = async function() {
-      const p1 = document.getElementById('updatePasswordInput').value;
-      const p2 = document.getElementById('updatePasswordConfirmInput').value;
-      const errorDiv = document.getElementById('updatePasswordError');
-      const btn = document.getElementById('updatePasswordBtn');
-      
-      if (errorDiv) { errorDiv.style.display = 'none'; errorDiv.textContent = ''; }
-      
-      if (p1 !== p2) {
-        if (errorDiv) { errorDiv.style.display = 'block'; errorDiv.textContent = "Passwords do not match."; }
-        return;
-      }
-      
-      if (p1.length < 8) {
-        if (errorDiv) { errorDiv.style.display = 'block'; errorDiv.textContent = "Password must be at least 8 characters."; }
-        return;
-      }
-
-      if (btn) { btn.disabled = true; btn.textContent = "Updating..."; }
-
-      if (window._localResetEmail) {
-         let users = JSON.parse(localStorage.getItem('pawfeedUsers') || '[]');
-         const idx = users.findIndex(u => u.email === window._localResetEmail);
-         if (idx !== -1) {
-            users[idx].password = p1;
-            localStorage.setItem('pawfeedUsers', JSON.stringify(users));
-            showToast("Password updated successfully! 🎉");
-            if (btn) { btn.disabled = false; btn.textContent = "Update Password"; }
-            closeUpdatePasswordModal();
-            window._localResetEmail = null;
-            return;
-         }
-      }
-
-      if (!window.supabaseClient) {
-        if (btn) { btn.disabled = false; btn.textContent = "Update Password"; }
-        return;
-      }
-      
-      const { data, error } = await window.supabaseClient.auth.updateUser({ password: p1 });
-      
-      if (btn) { btn.disabled = false; btn.textContent = "Update Password"; }
-
-      if (error) {
-        if (errorDiv) { errorDiv.style.display = 'block'; errorDiv.textContent = error.message || "Failed to update password"; }
-      } else {
-        showToast("Password updated successfully! 🎉 Please log in with your new password.");
-        await closeUpdatePasswordModal(); // logs out and redirects to login
-      }
-    };
 
     // ==================== LOAD APP ====================
     function loadApp() {
@@ -1880,16 +1696,6 @@ const USE_SUPABASE_ONLY = true;
       const existingPets = getPets();
       const existingAvatar = idx >= 0 ? existingPets[idx]?.avatar : null;
 
-      // Validate age and weight
-      const ageVal = parseFloat(document.getElementById('mpetAge').value);
-      const weightVal = parseFloat(document.getElementById('mpetWeight').value);
-      if (document.getElementById('mpetAge').value && (ageVal < 0 || ageVal > 40)) {
-        return showToast("Age must be between 0 and 40 years.");
-      }
-      if (document.getElementById('mpetWeight').value && (weightVal < 0 || weightVal > 99)) {
-        return showToast("Weight must be between 0 and 99 kg.");
-      }
-
       const pet = {
         id: idx >= 0 ? existingPets[idx]?.id : undefined,
         name: document.getElementById('mpetName').value.trim(),
@@ -1953,19 +1759,18 @@ const USE_SUPABASE_ONLY = true;
       openTab('home');
     }
 
-    async function deletePet(idx) {
-        const pets = JSON.parse(JSON.stringify(getPets())); // Deep copy
-        const name = pets[idx]?.name || 'this pet';
-        showConfirm('Remove ' + name + '?', 'All data for ' + name + ' will be removed.', async () => {
-          pets.splice(idx, 1);
-          showToast('Deleting from cloud... ⏳');
-          await savePets(pets);
-          const activeIdx = getActivePetIdx();
-          if (activeIdx >= pets.length) setActivePetIdx(Math.max(0, pets.length - 1));
-          refreshAllUI();
-          showToast(name + ' removed');
-        });
-      }
+    function deletePet(idx) {
+      const pets = getPets();
+      const name = pets[idx]?.name || 'this pet';
+      showConfirm('Remove ' + name + '?', 'All data for ' + name + ' will be removed.', () => {
+        pets.splice(idx, 1);
+        savePets(pets);
+        const activeIdx = getActivePetIdx();
+        if (activeIdx >= pets.length) setActivePetIdx(Math.max(0, pets.length - 1));
+        refreshAllUI();
+        showToast(name + ' removed');
+      });
+    }
 
     function setMainPet(idx) {
       setActivePetIdx(idx);
@@ -2212,25 +2017,6 @@ const USE_SUPABASE_ONLY = true;
       if (hour >= 9 && !todayLogs.some(e => e.type === 'fed' && new Date(e.timestamp).getHours() < 9)) missed.push({ label: 'Morning Meal', time: '7:00 AM', icon: '🌅' });
       if (hour >= 15 && fedCount < 2) missed.push({ label: 'Afternoon Meal', time: '1:00 PM', icon: '☀️' });
       if (hour >= 21 && fedCount < 3 && expectedMeals >= 3) missed.push({ label: 'Dinner', time: '7:30 PM', icon: '🌙' });
-      
-      const tasks = pawCache.tasks || [];
-      const petTasks = tasks.filter(t => t.petIdx === activeIdx);
-      const dayTasks = petTasks.filter(t => taskAppliesToDate(t, today));
-      const pendingTasks = dayTasks.filter(t => !(t.completedDates && t.completedDates.includes(today)));
-      const nowMs = Date.now();
-      
-      pendingTasks.forEach(t => {
-        const timePart = t.dateTime.length > 10 ? t.dateTime.substring(11, 16) : '00:00';
-        const taskTimeMs = new Date(`${today}T${timePart}:00`).getTime();
-        if (nowMs > taskTimeMs + 60 * 60 * 1000) {
-           missed.push({
-             label: t.title,
-             time: formatTimeFromDateTime(`1970-01-01T${timePart}`),
-             icon: '⚠️'
-           });
-        }
-      });
-
       return missed;
     }
 
@@ -2276,94 +2062,31 @@ const USE_SUPABASE_ONLY = true;
       if (!window.supabaseClient || !currentUser) return;
       const userId = currentUser.id;
       try {
-        // Get all existing DB rows for this user to find duplicates and orphans
-        const { data: dbTasks } = await window.supabaseClient.from('care_tasks').select('id, payload').eq('user_id', userId);
-        
-        // Build a map: original string task ID -> numeric DB id (for tasks that were previously saved)
-        const stringIdToDbId = new Map();
-        const dbIdSet = new Set();
+        const { data: dbTasks } = await window.supabaseClient.from('care_tasks').select('id').eq('user_id', userId);
         if (dbTasks) {
-          dbTasks.forEach(dbRow => {
-            dbIdSet.add(dbRow.id);
-            if (dbRow.payload && dbRow.payload.id && typeof dbRow.payload.id === 'string') {
-              // If we've seen this string ID before, mark the earlier one for deletion (keep latest)
-              if (stringIdToDbId.has(String(dbRow.payload.id))) {
-                // the previous entry is a duplicate - delete it later
-              }
-              stringIdToDbId.set(String(dbRow.payload.id), dbRow.id);
-            }
-          });
-        }
-
-        // Collect which DB IDs are still active (referenced by current tasks)
-        const activeDbIds = new Set();
-        for (let i = 0; i < tasks.length; i++) {
-          const task = tasks[i];
-          if (task.id && typeof task.id === 'number') {
-            activeDbIds.add(task.id);
-          } else if (task.id && typeof task.id === 'string') {
-            const existingDbId = stringIdToDbId.get(String(task.id));
-            if (existingDbId) activeDbIds.add(existingDbId);
+          const activeIds = tasks.map(t => t.id).filter(id => typeof id === 'number' || (typeof id === 'string' && !id.startsWith('task_')));
+          const deletedIds = dbTasks.filter(t => !activeIds.includes(t.id)).map(t => t.id);
+          if (deletedIds.length > 0) {
+            await window.supabaseClient.from('care_tasks').delete().in('id', deletedIds);
           }
         }
-
-        // Delete orphaned DB rows (tasks that no longer exist locally)
-        if (dbTasks) {
-          const orphanIds = dbTasks.filter(t => !activeDbIds.has(t.id)).map(t => t.id);
-          // Only delete rows that don't have a matching active task AND aren't just duplicates about to be cleaned
-          const nonDuplicateOrphans = orphanIds.filter(id => {
-            // Check if this ID belongs to a task that IS still active but just has a different db id
-            const dbRow = dbTasks.find(r => r.id === id);
-            if (dbRow && dbRow.payload && dbRow.payload.id) {
-              const currentDbId = stringIdToDbId.get(String(dbRow.payload.id));
-              // If this row's string task id maps to a different (newer) db row, it's a duplicate
-              if (currentDbId && currentDbId !== id) return true; // orphan/duplicate - delete
-            }
-            return !activeDbIds.has(id);
-          });
-          if (nonDuplicateOrphans.length > 0) {
-            await window.supabaseClient.from('care_tasks').delete().in('id', nonDuplicateOrphans);
-          }
-        }
-
         for (let i = 0; i < tasks.length; i++) {
           const task = tasks[i];
-          const dbPayload = {
+          const petId = pawCache.pets[task.petIdx]?.id || null;
+          const payload = {
             user_id: userId,
-            text: task.title,
-            date: task.dateTime.slice(0, 10),
-            completed: task.completed || false,
-            payload: task,
-            household_id: currentHouseholdId
+            pet_id: petId,
+            title: task.title,
+            date_time: task.dateTime,
+            repeat: task.repeat,
+            completed: task.completed,
+            payload: task
           };
-
           if (task.id && typeof task.id === 'number') {
-            // Already has a numeric DB id - do an UPDATE
-            const { error } = await window.supabaseClient.from('care_tasks').update({
-              text: dbPayload.text,
-              date: dbPayload.date,
-              completed: dbPayload.completed,
-              payload: task
-            }).eq('id', task.id);
-            if (error) console.error('Failed to update task', task.id, error);
-          } else {
-            // String ID - check if a DB row already exists for it
-            const existingDbId = stringIdToDbId.get(String(task.id));
-            if (existingDbId) {
-              // Update the existing row AND update in-memory id to numeric
-              const { error } = await window.supabaseClient.from('care_tasks').update({
-                text: dbPayload.text,
-                date: dbPayload.date,
-                completed: dbPayload.completed,
-                payload: task
-              }).eq('id', existingDbId);
-              if (!error) task.id = existingDbId;
-            } else {
-              // Brand new task - insert
-              const { data, error } = await window.supabaseClient.from('care_tasks').insert(dbPayload).select('id').single();
-              if (!error && data) task.id = data.id;
-            }
+            payload.id = task.id;
           }
+          const { data, error } = await window.supabaseClient.from('care_tasks').upsert({...payload, household_id: currentHouseholdId}).select('id').single();
+          if (!error && data) task.id = data.id;
         }
       } catch (err) {
         console.error("Error syncing care tasks to Supabase:", err);
@@ -2515,29 +2238,14 @@ const USE_SUPABASE_ONLY = true;
       });
     }
 
-    window.toggleSubmitBtn = function(taskId) {
-      const chk = document.getElementById('chk_' + taskId);
-      const btn = document.getElementById('btnSubmit_' + taskId);
-      if (chk && btn) {
-        btn.style.display = chk.checked ? 'block' : 'none';
-      }
-    };
-
-    async function completePlannerTask(taskId, dateStr) {
-
+    function completePlannerTask(taskId, dateStr) {
       const tasks = getCareTasks();
       const task = tasks.find(t => String(t.id) === String(taskId));
       if (!task) return;
 
       if (!task.completedDates) task.completedDates = [];
-      if (!task.completedTimesMap) task.completedTimesMap = {};
       if (!task.completedDates.includes(dateStr)) {
         task.completedDates.push(dateStr);
-        
-        const now = new Date();
-        const offset = now.getTimezoneOffset() * 60000;
-        const localISOTime = (new Date(now - offset)).toISOString().slice(0, 19);
-        task.completedTimesMap[dateStr] = localISOTime;
 
         // Log task in history
         const log = getLog();
@@ -2582,15 +2290,7 @@ const USE_SUPABASE_ONLY = true;
         task.completed = true;
       }
 
-      await saveCareTasks(tasks);
-        
-        // After saveCareTasks, task.id is now numeric. Do one final direct update to guarantee payload is fresh.
-        if (window.supabaseClient && task.id && typeof task.id === 'number') {
-           await window.supabaseClient.from('care_tasks').update({ 
-               completed: task.completed || false,
-               payload: task
-           }).eq('id', task.id);
-        }
+      saveCareTasks(tasks);
       showToast(`Task "${task.title}" completed! ✅`);
 
       // Streak trigger
@@ -2622,8 +2322,7 @@ const USE_SUPABASE_ONLY = true;
       refreshAllUI();
     }
 
-    async function uncompletePlannerTask(taskId, dateStr) {
-
+    function uncompletePlannerTask(taskId, dateStr) {
       const tasks = getCareTasks();
       const task = tasks.find(t => String(t.id) === String(taskId));
       if (!task) return;
@@ -2635,16 +2334,7 @@ const USE_SUPABASE_ONLY = true;
         task.completed = false;
       }
 
-      await saveCareTasks(tasks);
-        
-        // Ensure the completed column and payload are synced
-        if (window.supabaseClient && task.id && typeof task.id === 'number') {
-           const { id, petIdx, ...payloadData } = task;
-           await window.supabaseClient.from('care_tasks').update({ 
-               completed: false,
-               payload: payloadData
-           }).eq('id', task.id);
-        }
+      saveCareTasks(tasks);
 
       let log = getLog();
       const idx = log.findIndex(e => e.petIdx === task.petIdx && e.timestamp.slice(0, 10) === dateStr && e.note === `Completed task: ${task.title}`);
@@ -2654,57 +2344,6 @@ const USE_SUPABASE_ONLY = true;
       }
 
       showToast(`Task "${task.title}" marked incomplete`);
-      refreshAllUI();
-    }
-
-    function openRescheduleModal(taskId, taskTitle) {
-      const elTaskId = document.getElementById('rescheduleTaskId');
-      const elTitle = document.getElementById('rescheduleTaskTitle');
-      const elDateTime = document.getElementById('rescheduleDateTime');
-      const elModal = document.getElementById('rescheduleModal');
-      if(elTaskId) elTaskId.value = taskId;
-      if(elTitle) elTitle.textContent = `Rescheduling: ${taskTitle}`;
-      
-      const now = new Date();
-      const offset = now.getTimezoneOffset() * 60000;
-      const localISOTime = (new Date(now - offset)).toISOString().slice(0, 16);
-      if(elDateTime) elDateTime.value = localISOTime;
-      
-      if(elModal) elModal.classList.remove('hidden');
-    }
-
-    function closeRescheduleModal() {
-      const elModal = document.getElementById('rescheduleModal');
-      if(elModal) elModal.classList.add('hidden');
-    }
-
-    async function saveRescheduleTask() {
-      const taskId = document.getElementById('rescheduleTaskId').value;
-      const dtInput = document.getElementById('rescheduleDateTime').value;
-      if (!dtInput) {
-        showToast('Please select a new date and time.');
-        return;
-      }
-      
-      const tasks = getCareTasks();
-      const task = tasks.find(t => String(t.id) === String(taskId));
-      if (!task) return;
-      
-      task.dateTime = dtInput;
-      // Note: we do not alter completedDates here. If they reschedule to future, it becomes active.
-      // If we want to clear completion for this specific date, we could, but it's typically incomplete anyway.
-      
-      await saveCareTasks(tasks);
-      
-      if (window.supabaseClient && task.id && typeof task.id === 'number') {
-         const { id, petIdx, ...payloadData } = task;
-         await window.supabaseClient.from('care_tasks').update({
-            payload: payloadData
-         }).eq('id', task.id);
-      }
-      
-      showToast('Task rescheduled successfully!');
-      closeRescheduleModal();
       refreshAllUI();
     }
 
@@ -2812,97 +2451,28 @@ const USE_SUPABASE_ONLY = true;
         progressBar.style.width = `${pct}%`;
       }
 
-      const isTodayPlanner = selectedPlannerDateStr === new Date().toISOString().slice(0, 10);
-      const pendingHeader = document.getElementById('plannerPendingHeader');
-      if (pendingHeader) pendingHeader.innerHTML = isTodayPlanner ? "📋 Today's Tasks" : "📋 Tasks for Selected Date";
-      const completedHeader = document.getElementById('plannerCompletedHeader');
-      if (completedHeader) completedHeader.innerHTML = isTodayPlanner ? "✅ Completed Today" : "✅ Completed on Selected Date";
-      
-
       // Render checklists
-      const incompleteSection = document.getElementById('plannerIncompleteSection');
-      const incompleteList = document.getElementById('plannerIncompleteList');
       const pendingList = document.getElementById('plannerPendingList');
       const completedList = document.getElementById('plannerCompletedList');
+      const upcomingList = document.getElementById('plannerUpcomingList');
+      const historyBox = document.getElementById('plannerHistoryBox');
 
-
-      const allPending = dayTasks.filter(t => !(t.completedDates && t.completedDates.includes(selectedPlannerDateStr)));
-      
-      const incompletePending = [];
-      const activePending = [];
-      
-      allPending.forEach(t => {
-        const timePart = t.dateTime.length > 10 ? t.dateTime.substring(11, 16) : '00:00';
-        const taskTimeMs = new Date(`${selectedPlannerDateStr}T${timePart}:00`).getTime();
-        if (Date.now() > taskTimeMs + 60 * 60 * 1000) {
-           incompletePending.push(t);
-        } else {
-           activePending.push(t);
-        }
-      });
-      
-      // Reminders logic
-      if (isTodayPlanner && incompletePending.length > 0) {
-          const lastNotified = sessionStorage.getItem('lastIncompleteCount') || 0;
-          if (incompletePending.length > lastNotified) {
-              setTimeout(() => {
-                  showToast(`⚠️ You have ${incompletePending.length} incomplete task(s) from earlier. Please reschedule them.`);
-              }, 1000);
-          }
-          sessionStorage.setItem('lastIncompleteCount', incompletePending.length);
-      } else if (isTodayPlanner && incompletePending.length === 0) {
-          sessionStorage.setItem('lastIncompleteCount', 0);
-      }
-
-      if (incompleteList && incompleteSection) {
-        if (incompletePending.length === 0) {
-           incompleteSection.style.display = 'none';
-        } else {
-           incompleteSection.style.display = 'block';
-           incompleteList.innerHTML = incompletePending.map(t => {
-            const timeStr = formatTimeFromDateTime(t.dateTime);
-            const repeatLabel = t.repeat !== 'none' ? `<span style="background:var(--pill-bg);color:var(--pill-color);font-size:10px;padding:2px 6px;border-radius:8px;font-weight:800;text-transform:uppercase">${t.repeat}</span>` : '';
-            const deleteBtn = !isDefaultTask(t.title) ? `<button onclick="deletePlannerTask('${t.id}')" style="background:none;border:none;color:var(--red);font-size:16px;cursor:pointer;padding:0 4px">✕</button>` : '';
-            
-            return `
-              <div class="card" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;margin:8px 0; border: 1px solid var(--red);">
-                <div style="display:flex;align-items:center;gap:12px">
-                  <span style="font-size:18px;cursor:not-allowed;padding:0 2px" title="Locked (Missed)">🔒</span>
-                  <div>
-                    <b style="font-size:15px;color:var(--red)">${t.title}</b>
-                    <div style="font-size:12px;color:var(--muted);margin-top:2px;display:flex;align-items:center;gap:8px">
-                      <span style="color:var(--red)">🕒 ${timeStr}</span>
-                      ${repeatLabel}
-                      <span>${t.reminder ? '🔔' : ''}</span>
-                    </div>
-                  </div>
-                </div>
-                <div style="display:flex; align-items:center; gap:8px">
-                    <button class="secondary-btn" onclick="openRescheduleModal('${t.id}', '${t.title.replace(/'/g, "\\'")}')" style="margin:0; padding:4px 10px; font-size:12px; color:var(--dark);">Reschedule</button>
-                    ${deleteBtn}
-                </div>
-              </div>
-            `;
-          }).join('');
-        }
-      }
-
+      const pending = dayTasks.filter(t => !(t.completedDates && t.completedDates.includes(selectedPlannerDateStr)));
       const completed = dayTasks.filter(t => t.completedDates && t.completedDates.includes(selectedPlannerDateStr));
       const upcoming = petTasks.filter(t => t.dateTime.slice(0, 10) > selectedPlannerDateStr && !(t.repeat === 'none' && t.completed));
 
       if (pendingList) {
-        if (activePending.length === 0) {
+        if (pending.length === 0) {
           pendingList.innerHTML = `<div class="card empty-state" style="padding:12px;margin:8px 0"><p style="font-size:13px;color:var(--muted)">No pending tasks for this day.</p></div>`;
         } else {
-          pendingList.innerHTML = activePending.map(t => {
+          pendingList.innerHTML = pending.map(t => {
             const timeStr = formatTimeFromDateTime(t.dateTime);
             const repeatLabel = t.repeat !== 'none' ? `<span style="background:var(--pill-bg);color:var(--pill-color);font-size:10px;padding:2px 6px;border-radius:8px;font-weight:800;text-transform:uppercase">${t.repeat}</span>` : '';
             const deleteBtn = !isDefaultTask(t.title) ? `<button onclick="deletePlannerTask('${t.id}')" style="background:none;border:none;color:var(--red);font-size:16px;cursor:pointer;padding:0 4px">✕</button>` : '';
-
             return `
               <div class="card" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;margin:8px 0">
                 <div style="display:flex;align-items:center;gap:12px">
-                  <input type="checkbox" id="chk_${t.id}" onchange="toggleSubmitBtn('${t.id}')" style="width:20px;height:20px;cursor:pointer;accent-color:var(--orange)" />
+                  <input type="checkbox" onchange="completePlannerTask('${t.id}', '${selectedPlannerDateStr}')" style="width:20px;height:20px;cursor:pointer;accent-color:var(--orange)" />
                   <div>
                     <b style="font-size:15px;color:var(--dark)">${t.title}</b>
                     <div style="font-size:12px;color:var(--muted);margin-top:2px;display:flex;align-items:center;gap:8px">
@@ -2912,11 +2482,7 @@ const USE_SUPABASE_ONLY = true;
                     </div>
                   </div>
                 </div>
-                <div style="display:flex;align-items:center;gap:8px">
-                  <button class="secondary-btn" onclick="openRescheduleModal('${t.id}', '${t.title.replace(/'/g, "\\'")}')" style="margin:0; padding:4px 10px; font-size:12px; color:var(--dark);">Reschedule</button>
-                  <button id="btnSubmit_${t.id}" class="primary-btn" onclick="completePlannerTask('${t.id}', '${selectedPlannerDateStr}')" style="display:none;margin:0;padding:4px 10px;font-size:12px">Submit</button>
-                  ${deleteBtn}
-                </div>
+                ${deleteBtn}
               </div>
             `;
           }).join('');
@@ -2928,10 +2494,7 @@ const USE_SUPABASE_ONLY = true;
           completedList.innerHTML = `<div class="card empty-state" style="padding:12px;margin:8px 0"><p style="font-size:13px;color:var(--muted)">No completed tasks for this day yet.</p></div>`;
         } else {
           completedList.innerHTML = completed.map(t => {
-            let timeStr = formatTimeFromDateTime(t.dateTime);
-            if (t.completedTimesMap && t.completedTimesMap[selectedPlannerDateStr]) {
-              timeStr = formatTimeFromDateTime(t.completedTimesMap[selectedPlannerDateStr]);
-            }
+            const timeStr = formatTimeFromDateTime(t.dateTime);
             const deleteBtn = !isDefaultTask(t.title) ? `<button onclick="deletePlannerTask('${t.id}')" style="background:none;border:none;color:var(--red);font-size:16px;cursor:pointer;padding:0 4px">✕</button>` : '';
             return `
               <div class="card" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;margin:8px 0;opacity:0.75;background:var(--success-bg);border:1px solid #B5EAD7">
@@ -2951,7 +2514,54 @@ const USE_SUPABASE_ONLY = true;
         }
       }
 
+      if (upcomingList) {
+        if (upcoming.length === 0) {
+          upcomingList.innerHTML = `<div class="card empty-state" style="padding:12px;margin:8px 0"><p style="font-size:13px;color:var(--muted)">No upcoming tasks scheduled.</p></div>`;
+        } else {
+          const sortedUpcoming = upcoming.slice().sort((a, b) => a.dateTime.localeCompare(b.dateTime));
+          upcomingList.innerHTML = sortedUpcoming.slice(0, 10).map(t => {
+            const dateObj = new Date(t.dateTime);
+            const dateLabelStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+            const repeatLabel = t.repeat !== 'none' ? `<span style="background:var(--pill-bg);color:var(--pill-color);font-size:9px;padding:1px 4px;border-radius:6px;font-weight:800;text-transform:uppercase">${t.repeat}</span>` : '';
+            const deleteBtn = !isDefaultTask(t.title) ? `<button onclick="deletePlannerTask('${t.id}')" style="background:none;border:none;color:var(--red);font-size:14px;cursor:pointer;padding:0 4px">✕</button>` : '';
+            return `
+              <div class="card" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;margin:6px 0;background:var(--pill-bg);border:none">
+                <div>
+                  <b style="font-size:14px;color:var(--dark)">${t.title}</b>
+                  <div style="font-size:11px;color:var(--muted);margin-top:2px;display:flex;align-items:center;gap:6px">
+                    <span>🗓️ ${dateLabelStr}</span>
+                    ${repeatLabel}
+                    <span>${t.reminder ? '🔔' : ''}</span>
+                  </div>
+                </div>
+                ${deleteBtn}
+              </div>
+            `;
+          }).join('');
+        }
+      }
 
+      if (historyBox) {
+        const log = getLog().filter(e => e.petIdx === activeIdx && (e.type === 'care' || e.type === 'fed' || e.type === 'water'));
+        if (log.length === 0) {
+          historyBox.innerHTML = `<p style="font-size:13px;color:var(--muted);padding:8px 0;text-align:center">No task completion history yet.</p>`;
+        } else {
+          historyBox.innerHTML = log.map(e => {
+            const ts = new Date(e.timestamp);
+            const dateStr = ts.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            const timeStr = ts.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            return `
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+                <div>
+                  <span style="font-weight:800;color:var(--dark);font-size:14px">${e.note || e.taskTitle || 'Care Task'}</span>
+                  <span style="font-size:11px;color:var(--muted);margin-left:8px">${dateStr} @ ${timeStr}</span>
+                </div>
+                <span style="font-size:11px;background:var(--success-bg);color:#1A6A4A;padding:2px 8px;border-radius:10px;font-weight:800">Done ✓</span>
+              </div>
+            `;
+          }).join('');
+        }
+      }
     }
 
     // ==================== REFRESH ALL ====================
@@ -2968,6 +2578,7 @@ const USE_SUPABASE_ONLY = true;
       updateHomeStats(pets, activeIdx, noPet);
       renderReminderBanner(pets, activeIdx, noPet);
       renderDailyTip();
+      if (typeof renderDashboardMiniChart === 'function') renderDashboardMiniChart(pets, activeIdx, noPet);
 
       // === PHASE 2: Defer heavy tabs to next frame so UI doesn't freeze ===
       requestAnimationFrame(() => {
@@ -2981,6 +2592,7 @@ const USE_SUPABASE_ONLY = true;
         }, 50);
         setTimeout(() => {
           renderHomemadeTab();
+          renderVisionHistory();
         }, 100);
         setTimeout(() => {
           renderCommunity();
@@ -3378,26 +2990,19 @@ const USE_SUPABASE_ONLY = true;
       const todayFed = log.filter(e => e.petIdx === petIdx && e.type === 'fed' && e.timestamp.slice(0, 10) === todayStr());
 
       return `
-    <div class="planner-desktop-grid">
-      <div class="planner-left-col">
-        <div class="card success">
-          <h3 style="font-weight:900;margin-bottom:8px">${PET_ICONS[pet.type] || '🐾'} ${pet.name}'s Meal Schedule</h3>
-          ${meals.map(m => `<div class="list-item"><span>✅</span><p>${m}</p></div>`).join('')}
-        </div>
-        ${ageNote ? `<div class="card">${ageNote}</div>` : ''}
-        ${portionNote ? `<div class="card">${portionNote}</div>` : ''}
-        <div class="card">
-          <h3 style="font-weight:800;margin-bottom:8px">Food Preference: ${pet.foodPref}</h3>
-          <div class="list-item"><span>💡</span><p>${healthNote}</p></div>
-        </div>
-      </div>
-      <div class="planner-right-col">
-        <div class="card">
-          <h3 style="font-weight:800;margin-bottom:6px">📋 Today's Feedings <span style="color:var(--orange)">(${todayFed.length})</span></h3>
-          ${todayFed.length ? todayFed.map(f => `<div class="log-entry"><div><div class="log-time">${formatTime(f.timestamp)}</div><div class="log-text">${f.note}</div></div><span class="log-badge fed">Fed ✓</span></div>`).join('') : '<p style="color:var(--muted);font-size:13px;padding:8px 0">No feedings logged today yet.</p>'}
-        </div>
-        <button class="primary-btn" onclick="openLogModal()" style="margin-top:8px; width:100%;">+ Log a Feeding</button>
-      </div>
+    <div class="card success">
+      <h3 style="font-weight:900;margin-bottom:8px">${PET_ICONS[pet.type] || '🐾'} ${pet.name}'s Meal Schedule</h3>
+      ${meals.map(m => `<div class="list-item"><span>✅</span><p>${m}</p></div>`).join('')}
+    </div>
+    <div class="card">
+      <h3 style="font-weight:800;margin-bottom:6px">📋 Today's Feedings <span style="color:var(--orange)">(${todayFed.length})</span></h3>
+      ${todayFed.length ? todayFed.map(f => `<div class="log-entry"><div><div class="log-time">${formatTime(f.timestamp)}</div><div class="log-text">${f.note}</div></div><span class="log-badge fed">Fed ✓</span></div>`).join('') : '<p style="color:var(--muted);font-size:13px;padding:8px 0">No feedings logged today yet.</p>'}
+    </div>
+    ${ageNote ? `<div class="card">${ageNote}</div>` : ''}
+    ${portionNote ? `<div class="card">${portionNote}</div>` : ''}
+    <div class="card">
+      <h3 style="font-weight:800;margin-bottom:8px">Food Preference: ${pet.foodPref}</h3>
+      <div class="list-item"><span>💡</span><p>${healthNote}</p></div>
     </div>`;
     }
 
@@ -3437,54 +3042,41 @@ const USE_SUPABASE_ONLY = true;
       }
 
       box.innerHTML = `
-    <div class="planner-desktop-grid">
-      <div class="planner-left-col">
-        <!-- WATER TRACKER -->
-        <div class="card">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-            <h3 style="font-weight:900">💧 Water Today</h3>
-            <span style="font-size:13px;color:var(--muted)">${waterMl}ml / ${pet.waterGoal || 500}ml</span>
-          </div>
-          <div class="progress-bar-wrap"><div class="progress-bar" style="width:${waterPct}%;background:#A8D8EA"></div></div>
-          <div class="water-tracker">
-            ${Array.from({ length: totalDrops }, (_, i) => `
-              <div class="water-drop ${currentDrops.includes(i) ? 'filled' : ''}" onclick="toggleWater(${petIdx},${i})">
-                <span>💧</span>
-              </div>`).join('')}
-          </div>
-          <p style="font-size:12px;color:var(--muted)">Tap each drop to log water. Goal: ${pet.waterGoal || 500}ml/day</p>
-        </div>
-
-        <!-- MOOD TRACKER -->
-        <div class="card">
-          <h3 style="font-weight:900;margin-bottom:8px">😊 Mood Today</h3>
-          ${moodToday ? `<div style="text-align:center;padding:10px 0"><span style="font-size:36px">${moodToday.split(' ')[0]}</span><div style="font-size:14px;font-weight:800;margin-top:6px;color:var(--dark)">${moodToday}</div><div style="font-size:12px;color:var(--muted);margin-top:4px">Mood logged today</div></div>` : '<p style="font-size:13px;color:var(--muted);margin-bottom:10px">How is your pet feeling today?</p>'}
-          <div class="mood-row">
-            <div class="mood-btn ${moodToday === '😄 Happy' ? 'selected' : ''}" onclick="logQuickMood('😄 Happy',${petIdx})"><span class="mood-icon">😄</span>Happy</div>
-            <div class="mood-btn ${moodToday === '😐 Calm' ? 'selected' : ''}" onclick="logQuickMood('😐 Calm',${petIdx})"><span class="mood-icon">😐</span>Calm</div>
-            <div class="mood-btn ${moodToday === '😴 Tired' ? 'selected' : ''}" onclick="logQuickMood('😴 Tired',${petIdx})"><span class="mood-icon">😴</span>Tired</div>
-            <div class="mood-btn ${moodToday === '😟 Sad' ? 'selected' : ''}" onclick="logQuickMood('😟 Sad',${petIdx})"><span class="mood-icon">😟</span>Sad</div>
-            <div class="mood-btn ${moodToday === '😡 Grumpy' ? 'selected' : ''}" onclick="logQuickMood('😡 Grumpy',${petIdx})"><span class="mood-icon">😡</span>Grumpy</div>
-          </div>
-        </div>
-        
-        <!-- MOOD BREAKDOWN CHART -->
-        ${(getLog().filter(e => e.petIdx === petIdx && e.type === 'mood').length > 0) ? `
-        <div class="card">
-          <h3 style="font-weight:900;margin-bottom:12px">📊 Mood Breakdown (Last 30)</h3>
-          <div class="chartjs-wrap" style="position:relative;height:200px;width:100%">
-            <canvas id="moodChart${petIdx}"></canvas>
-          </div>
-        </div>` : ''}
+    <!-- WATER TRACKER -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <h3 style="font-weight:900">💧 Water Today</h3>
+        <span style="font-size:13px;color:var(--muted)">${waterMl}ml / ${pet.waterGoal || 500}ml</span>
       </div>
+      <div class="progress-bar-wrap"><div class="progress-bar" style="width:${waterPct}%;background:#A8D8EA"></div></div>
+      <div class="water-tracker">
+        ${Array.from({ length: totalDrops }, (_, i) => `
+          <div class="water-drop ${currentDrops.includes(i) ? 'filled' : ''}" onclick="toggleWater(${petIdx},${i})">
+            <span>💧</span>
+          </div>`).join('')}
+      </div>
+      <p style="font-size:12px;color:var(--muted)">Tap each drop to log water. Goal: ${pet.waterGoal || 500}ml/day</p>
+    </div>
 
-      <div class="planner-right-col">
-        <!-- WEIGHT TRACKER -->
-        <div class="card">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-            <h3 style="font-weight:900">⚖️ Weight History</h3>
-            <button class="small-btn" onclick="document.getElementById('weightModal').classList.remove('hidden')">+ Log</button>
-          </div>
+    <!-- MOOD TRACKER -->
+    <div class="card">
+      <h3 style="font-weight:900;margin-bottom:8px">😊 Mood Today</h3>
+      ${moodToday ? `<div style="text-align:center;padding:10px 0"><span style="font-size:36px">${moodToday.split(' ')[0]}</span><div style="font-size:14px;font-weight:800;margin-top:6px;color:var(--dark)">${moodToday}</div><div style="font-size:12px;color:var(--muted);margin-top:4px">Mood logged today</div></div>` : '<p style="font-size:13px;color:var(--muted);margin-bottom:10px">How is your pet feeling today?</p>'}
+      <div class="mood-row">
+        <div class="mood-btn ${moodToday === '😄 Happy' ? 'selected' : ''}" onclick="logQuickMood('😄 Happy',${petIdx})"><span class="mood-icon">😄</span>Happy</div>
+        <div class="mood-btn ${moodToday === '😐 Calm' ? 'selected' : ''}" onclick="logQuickMood('😐 Calm',${petIdx})"><span class="mood-icon">😐</span>Calm</div>
+        <div class="mood-btn ${moodToday === '😴 Tired' ? 'selected' : ''}" onclick="logQuickMood('😴 Tired',${petIdx})"><span class="mood-icon">😴</span>Tired</div>
+        <div class="mood-btn ${moodToday === '😟 Sad' ? 'selected' : ''}" onclick="logQuickMood('😟 Sad',${petIdx})"><span class="mood-icon">😟</span>Sad</div>
+        <div class="mood-btn ${moodToday === '😡 Grumpy' ? 'selected' : ''}" onclick="logQuickMood('😡 Grumpy',${petIdx})"><span class="mood-icon">😡</span>Grumpy</div>
+      </div>
+    </div>
+
+    <!-- WEIGHT TRACKER -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <h3 style="font-weight:900">⚖️ Weight History</h3>
+        <button class="small-btn" onclick="document.getElementById('weightModal').classList.remove('hidden')">+ Log</button>
+      </div>
       ${wh.length > 0 ? `
         <div class="chartjs-wrap" style="position:relative;height:180px;width:100%;margin-bottom:8px">
           <canvas id="weightChart${petIdx}"></canvas>
@@ -3499,7 +3091,14 @@ const USE_SUPABASE_ONLY = true;
         </div>` : '<p style="font-size:13px;color:var(--muted)">No weight entries yet. Log your pet\'s weight to see the chart.</p>'}
     </div>
 
-
+    <!-- MOOD BREAKDOWN CHART -->
+    ${(getLog().filter(e => e.petIdx === petIdx && e.type === 'mood').length > 0) ? `
+    <div class="card">
+      <h3 style="font-weight:900;margin-bottom:12px">📊 Mood Breakdown (Last 30)</h3>
+      <div class="chartjs-wrap" style="position:relative;height:200px;width:100%">
+        <canvas id="moodChart${petIdx}"></canvas>
+      </div>
+    </div>` : ''}
 
     <!-- SLEEP CHART -->
     ${(getSleepLog ? getSleepLog().length > 0 : false) ? `
@@ -3512,43 +3111,21 @@ const USE_SUPABASE_ONLY = true;
 
     <!-- HEALTH INSIGHTS -->
     ${typeof generateHealthInsights === 'function' ? generateHealthInsights(petIdx) : ''}
-      </div> <!-- End planner-right-col -->
-    </div> <!-- End planner-desktop-grid -->
 
-    <!-- COMPREHENSIVE ACTIVITY LOG (7 days) -->
-    <div class="card" style="margin-top:20px;">
+
+    <!-- FEEDING HISTORY (7 days) -->
+    <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <h3 style="font-weight:900">📜 Activity Log</h3>
-        <button class="small-btn" onclick="openLogModal()">+ Log</button>
+        <h3 style="font-weight:900">📜 Feeding History</h3>
+        <button class="small-btn" onclick="openLogModal('fed')">+ Log</button>
       </div>
       ${last7days.map(day => {
         const dayLogs = petLog.filter(e => e.timestamp.slice(0, 10) === day);
-        if (!dayLogs.length) return `<div class="history-day" style="display:flex; flex-direction:row; align-items:flex-start; gap:20px; border-bottom:1px solid var(--border); padding-bottom:16px; margin-bottom:16px;"><div class="history-day-label" style="width:100px; flex-shrink:0; font-size:14px; font-weight:900; color:var(--dark); margin-top:4px;">${formatDate(day)}</div><div style="font-size:12px;color:var(--muted);padding:6px 0;">No entries</div></div>`;
-        
-        // Group logs by category
-        const foodLogs = dayLogs.filter(e => e.type === 'fed');
-        const waterLogs = dayLogs.filter(e => e.type === 'water');
-        const moodLogs = dayLogs.filter(e => e.type === 'mood');
-        const careLogs = dayLogs.filter(e => !['fed', 'water', 'mood'].includes(e.type));
-        
-        let dayHtml = `<div class="history-day" style="display:flex; flex-direction:row; align-items:flex-start; gap:20px; border-bottom:1px solid var(--border); padding-bottom:16px; margin-bottom:16px;">
-          <div class="history-day-label" style="width:100px; flex-shrink:0; font-size:14px; font-weight:900; color:var(--dark); margin-top:4px;">${formatDate(day)}</div>
-          <div style="flex:1; display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:16px; align-items:start;">`;
-        
-        const renderGroup = (logs, title, icon, color) => {
-          if (!logs.length) return '';
-          return `<div style="margin-bottom:10px;">
-            <div style="font-size:12px;font-weight:800;color:${color};text-transform:uppercase;margin-bottom:6px;display:flex;align-items:center;gap:4px;">${icon} ${title}</div>
-            ${logs.map(e => `<div class="history-item" style="margin-bottom:4px;padding:6px;background:var(--bg);border-radius:8px;"><div class="history-icon">${typeIcon(e.type)}</div><div class="history-text"><b>${e.note}</b><span style="font-size:11px;">${formatTime(e.timestamp)}</span></div><span class="log-badge ${e.type}">${e.type === 'fed' ? 'Fed ✓' : e.type === 'water' ? 'Water' : e.type === 'weight' ? e.weight + 'kg' : e.type === 'mood' ? e.mood || 'Mood' : e.type === 'missed' ? 'Missed' : '—'}</span></div>`).join('')}
-          </div>`;
-        };
-        
-        dayHtml += renderGroup(foodLogs, 'Food & Feeding', '🍽️', 'var(--orange)');
-        dayHtml += renderGroup(waterLogs, 'Hydration', '💧', '#4facfe');
-        dayHtml += renderGroup(moodLogs, 'Mood & Behavior', '😊', '#a18cd1');
-        dayHtml += renderGroup(careLogs, 'Care & Tasks', '🩺', 'var(--teal)');
-        dayHtml += `</div></div>`;
-        return dayHtml;
+        if (!dayLogs.length) return `<div class="history-day"><div class="history-day-label">${formatDate(day)}</div><div style="font-size:12px;color:var(--muted);padding:6px 0 6px 4px">No entries</div></div>`;
+        return `<div class="history-day">
+          <div class="history-day-label">${formatDate(day)}</div>
+          ${dayLogs.map(e => `<div class="history-item"><div class="history-icon">${typeIcon(e.type)}</div><div class="history-text"><b>${e.note}</b><span>${formatTime(e.timestamp)}</span></div><span class="log-badge ${e.type}">${e.type === 'fed' ? 'Fed ✓' : e.type === 'water' ? 'Water' : e.type === 'weight' ? e.weight + 'kg' : e.type === 'mood' ? e.mood || 'Mood' : e.type === 'missed' ? 'Missed' : '—'}</span></div>`).join('')}
+        </div>`;
       }).join('')}
     </div>`;
 
@@ -3944,7 +3521,10 @@ const USE_SUPABASE_ONLY = true;
       }).join('');
     }
 
-    // escapeHtml is defined in the image compression utility section above
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    }
 
     // ==================== HELPERS ====================
     function petIcon(type) { return PET_ICONS[type] || '🐾'; }
@@ -4008,12 +3588,24 @@ const USE_SUPABASE_ONLY = true;
       document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
       const el = document.getElementById(tab + 'Tab');
       if (el) el.classList.remove('hidden');
-      // Bottom nav (mobile)
       const nav = document.getElementById('nav-' + tab);
       if (nav) nav.classList.add('active');
-      // Desktop sidebar nav
-      const snav = document.getElementById('snav-' + tab);
-      if (snav) snav.classList.add('active');
+      
+      const breadcrumb = document.getElementById('topBreadcrumb');
+      if (breadcrumb) {
+        const titles = {
+          'home': 'Dashboard',
+          'homemade': 'Food Studio',
+          'ai': 'PawFeed AI',
+          'careplanner': 'Care Planner',
+          'profile': 'My Profile',
+          'records': 'Health Records',
+          'combo-social': 'Health & Social',
+          'community': 'Pet Community',
+          'vision': 'Smart Vision Scan'
+        };
+        breadcrumb.innerText = titles[tab] || (tab.charAt(0).toUpperCase() + tab.slice(1));
+      }
 
       if (tab === 'profile') {
         renderGalleryTab();
@@ -4030,122 +3622,17 @@ const USE_SUPABASE_ONLY = true;
       if (tab === 'tracker') {
         if (typeof renderTrackerTab === 'function') renderTrackerTab(getPets(), getActivePetIdx(), isNoPet());
       }
-      if (tab === 'plan') {
-        if (typeof renderPlanTab === 'function') renderPlanTab(getPets(), getActivePetIdx(), isNoPet());
-      }
-      if (tab === 'care') {
-        if (typeof renderCareTab === 'function') renderCareTab(getPets(), getActivePetIdx(), isNoPet());
-      }
     }
 
     function openCombo(combo, defaultSub) {
-      document.querySelectorAll('.tab-screen').forEach(t => t.classList.add('hidden'));
+      document.querySelectorAll('#mainApp > .tab-screen').forEach(t => t.classList.add('hidden'));
       document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
       const el = document.getElementById('comboTab-' + combo);
       if (el) el.classList.remove('hidden');
-      // Bottom nav (mobile)
       const nav = document.getElementById('nav-combo-' + combo);
       if (nav) nav.classList.add('active');
-      // Desktop sidebar nav
-      const snav = document.getElementById('snav-combo-' + combo);
-      if (snav) snav.classList.add('active');
       switchComboSub(combo, defaultSub);
     }
-
-    // ==================== REAL-TIME SUBSCRIPTIONS ====================
-    function initRealtimeSubscriptions() {
-      if (!window.supabaseClient || !currentHouseholdId) return;
-      // Unsubscribe from any previous channel (e.g., when re-logging in)
-      if (window._pawfeedChannel) {
-        try { window.supabaseClient.removeChannel(window._pawfeedChannel); } catch (e) {}
-        window._pawfeedChannel = null;
-      }
-
-      let realtimeDebounce = null;
-      const scheduleRefresh = (fn) => {
-        clearTimeout(realtimeDebounce);
-        realtimeDebounce = setTimeout(() => {
-          fetchAllDataFromSupabase().then(() => { fn && fn(); refreshAllUI(); });
-        }, 600); // 600ms debounce to batch rapid changes
-      };
-
-      window._pawfeedChannel = window.supabaseClient
-        .channel('pawfeed-hh-' + currentHouseholdId)
-        .on('postgres_changes', {
-          event: '*', schema: 'public', table: 'pets',
-          filter: `household_id=eq.${currentHouseholdId}`
-        }, () => scheduleRefresh())
-        .on('postgres_changes', {
-          event: '*', schema: 'public', table: 'feeding_logs',
-          filter: `household_id=eq.${currentHouseholdId}`
-        }, () => scheduleRefresh())
-        .on('postgres_changes', {
-          event: '*', schema: 'public', table: 'care_tasks',
-          filter: `household_id=eq.${currentHouseholdId}`
-        }, () => scheduleRefresh())
-        .on('postgres_changes', {
-          event: '*', schema: 'public', table: 'community_posts'
-        }, () => scheduleRefresh(renderCommunity))
-        .on('postgres_changes', {
-          event: '*', schema: 'public', table: 'medical_records',
-          filter: `household_id=eq.${currentHouseholdId}`
-        }, () => scheduleRefresh())
-        .on('postgres_changes', {
-          event: '*', schema: 'public', table: 'direct_messages'
-        }, () => {
-          // Refresh DM if the modal is open
-          const dmModal = document.getElementById('dmModal');
-          if (dmModal && !dmModal.classList.contains('hidden')) {
-            if (typeof refreshDMList === 'function') refreshDMList();
-          }
-        })
-        .subscribe((status) => {
-          if (status === 'SUBSCRIBED') {
-            console.log('[PawFeed RT] Real-time active for household:', currentHouseholdId);
-          } else if (status === 'CHANNEL_ERROR') {
-            console.warn('[PawFeed RT] Channel error, will retry on next login.');
-          }
-        });
-    }
-
-    // ==================== KEYBOARD NAVIGATION ====================
-    document.addEventListener('keydown', function(e) {
-      if (e.key !== 'Escape') return;
-      // Map of modal IDs to their close function names
-      const closeMap = [
-        ['petModal', () => { const m = document.getElementById('petModal'); if (m) m.classList.add('hidden'); }],
-        ['logModal', () => { const m = document.getElementById('logModal'); if (m) m.classList.add('hidden'); }],
-        ['forgotModal', 'closeForgotPassword'],
-        ['recipeModal', 'closeRecipeModal'],
-        ['recipeDetailModal', 'closeRecipeDetailModal'],
-        ['commentsModal', 'closeCommentsModal'],
-        ['dmModal', 'closeDMModal'],
-        ['galleryModal', 'closeGalleryModal'],
-        ['lightbox', 'closeLightbox'],
-        ['medModal', 'closeMedModal'],
-        ['vetModal', 'closeVetModal'],
-        ['sleepModal', 'closeSleepModal'],
-        ['updatePasswordModal', 'closeUpdatePasswordModal'],
-        ['taskModal', 'closeTaskModal'],
-        ['expenseModal', 'closeExpenseModal'],
-        ['weightModal', 'closeWeightModal'],
-      ];
-      // Find the topmost visible modal and close it
-      for (let i = closeMap.length - 1; i >= 0; i--) {
-        const [id, closeFn] = closeMap[i];
-        const el = document.getElementById(id);
-        if (el && !el.classList.contains('hidden') && el.style.display !== 'none') {
-          if (typeof closeFn === 'function') {
-            closeFn();
-          } else if (typeof window[closeFn] === 'function') {
-            window[closeFn]();
-          } else {
-            el.classList.add('hidden');
-          }
-          break;
-        }
-      }
-    });
 
     function switchComboSub(combo, sub) {
       // Hide all inner panels for this combo
@@ -4343,22 +3830,13 @@ const USE_SUPABASE_ONLY = true;
       try {
         for (let i = 0; i < posts.length; i++) {
           const post = posts[i];
-          // Only insert posts that don't have a numeric DB id yet (new posts)
-          if (post.dbId) continue; // already in DB
-          if (post.id && typeof post.id === 'number' && post.id > 1000000000000) {
-            // This is a timestamp-based local id that hasn't been saved to DB yet
-            const { data, error } = await window.supabaseClient.from('community_posts').insert({
-              user_id: userId,
-              content: post.caption || post.content || '',
-              image_url: post.image || null,
-              payload: post
-            }).select('id').single();
-            if (!error && data) {
-              post.dbId = data.id; // mark as saved
-            } else if (error) {
-              console.error('Error posting to community:', error);
-            }
-          }
+          if (post.id) continue;
+          const { data, error } = await window.supabaseClient.from('community_posts').insert({
+            user_id: userId,
+            content: post.content || '',
+            image_url: post.image || null
+          }).select('id').single();
+          if (!error && data) post.id = data.id;
         }
       } catch (err) {
         console.error("Error syncing community posts:", err);
@@ -4446,23 +3924,26 @@ const USE_SUPABASE_ONLY = true;
               .getPublicUrl(`public/${fileName}`);
             imageUrl = urlData.publicUrl;
           } else {
+            // Bucket may not exist - fallback to base64 for local preview
             console.warn("Supabase Storage upload failed, using local image:", error.message);
-            imageUrl = selectedCommunityImage;
+            imageUrl = selectedCommunityImage; // base64 fallback
           }
         } catch (uploadErr) {
           console.warn("Image upload exception, using local fallback:", uploadErr);
           imageUrl = selectedCommunityImage;
         }
       } else if (selectedCommunityImage) {
-        imageUrl = selectedCommunityImage; 
+        imageUrl = selectedCommunityImage; // fallback to base64 if offline/no supabase
       }
+
 
       const user = getUser() || { name: 'Pet Parent' };
       const pets = getPets();
       const active = pets[getActivePetIdx()] || pets[0] || null;
+      const posts = getCommunityPosts();
       
       const newPost = { 
-        id: Date.now(),
+        id: Date.now(), 
         type, 
         caption, 
         image: imageUrl, 
@@ -4473,39 +3954,9 @@ const USE_SUPABASE_ONLY = true;
         likes: 0, 
         date: new Date().toISOString() 
       };
-
-      // Save directly to Supabase with full payload so all users can see it
-      if (window.supabaseClient && currentUser) {
-        const { data: inserted, error: insertErr } = await window.supabaseClient.from('community_posts').insert({
-          user_id: currentUser.id,
-          content: caption,
-          image_url: imageUrl || null,
-          payload: newPost,
-          household_id: currentHouseholdId || null
-        }).select('id').single();
-        if (insertErr) {
-          console.error('Error saving community post:', insertErr);
-          showToast('Failed to post. Please try again.');
-          return;
-        }
-        if (inserted) newPost.dbId = inserted.id;
-
-        // Refetch ALL posts from DB so this user and all others see the global feed
-        const { data: allPosts } = await window.supabaseClient.from('community_posts').select('*').order('id', { ascending: false });
-        if (allPosts) {
-          pawCache.communityPosts = allPosts.map(p => {
-            if (p.payload && Object.keys(p.payload).length > 0) {
-              return { ...p.payload, dbId: p.id, user_id: p.user_id };
-            }
-            return { id: p.id, dbId: p.id, user_id: p.user_id, type: 'tip', caption: p.content || '', image: p.image_url, author: 'PawFeed User', likes: 0, date: p.created_at };
-          });
-        }
-      } else {
-        // Offline fallback - just add locally
-        const posts = getCommunityPosts();
-        posts.unshift(newPost);
-        pawCache.communityPosts = posts.slice(0, 60);
-      }
+      posts.unshift(newPost);
+      
+      await saveCommunityPosts(posts.slice(0, 60));
       
       selectedCommunityImage = '';
       selectedCommunityImageFile = null;
@@ -4515,45 +3966,15 @@ const USE_SUPABASE_ONLY = true;
       showToast('Posted to community 👥');
       renderCommunity();
     }
-    async function likeCommunityPost(id) {
+    function likeCommunityPost(id) {
       const posts = getCommunityPosts();
       const p = posts.find(x => x.id === id);
-      if (!p) return;
-      p.likes = (p.likes || 0) + 1;
-      
-      const dbId = p.dbId || (typeof p.id === 'number' && p.id < 1000000000000 ? p.id : null);
-      if (dbId && window.supabaseClient) {
-        // Prepare a clean payload without local-only metadata if possible, or just save the whole p
-        // The payload column is a JSONB that stores all the custom properties.
-        const { error } = await window.supabaseClient.from('community_posts')
-          .update({ payload: p })
-          .eq('id', dbId);
-        if (error) console.error("Failed to update likes:", error);
-      }
-      
-      saveCommunityPosts(posts); 
-      renderCommunity();
+      if (p) p.likes = (p.likes || 0) + 1;
+      saveCommunityPosts(posts); renderCommunity();
     }
-    async function deleteCommunityPost(id) {
-      const posts = getCommunityPosts();
-      const p = posts.find(x => x.id === id);
-      if (p) {
-        const dbId = p.dbId || (typeof p.id === 'number' && p.id < 1000000000000 ? p.id : null);
-        if (dbId && window.supabaseClient) {
-          const { error } = await window.supabaseClient.from('community_posts').delete().eq('id', dbId);
-          if (error) {
-            console.error('Error deleting post:', error);
-            showToast('Failed to delete post');
-            return;
-          }
-        }
-      }
-      
-      const newPosts = posts.filter(post => post.id !== id);
-      pawCache.communityPosts = newPosts;
-      (!USE_SUPABASE_ONLY && localStorage.setItem('pawCommunityPosts', JSON.stringify(newPosts)));
-      renderCommunity(); 
-      showToast('Post removed');
+    function deleteCommunityPost(id) {
+      saveCommunityPosts(getCommunityPosts().filter(p => p.id !== id));
+      renderCommunity(); showToast('Post removed');
     }
     function seedCommunityDemo() {
       const posts = getCommunityPosts();
@@ -4579,7 +4000,7 @@ const USE_SUPABASE_ONLY = true;
       <div style="display:flex;gap:8px;margin-top:8px">
         <button class="small-btn" onclick="likeCommunityPost(${p.id})">❤️ ${p.likes || 0}</button>
         <button class="small-btn" onclick="openCommentsModal(${p.id})">💬 Comments</button>
-        ${(currentUser && p.user_id === currentUser.id) ? `<button class="small-btn" onclick="deleteCommunityPost(${p.id})">Delete</button>` : ''}
+        <button class="small-btn" onclick="deleteCommunityPost(${p.id})">Delete</button>
       </div>
     </div>`).join('');
     }
@@ -4588,20 +4009,10 @@ const USE_SUPABASE_ONLY = true;
     let currentCommentPostId = null;
     
     function openCommentsModal(postId) {
-      const posts = getCommunityPosts();
-      const p = posts.find(x => x.id === postId);
-      if (!p) return;
-      const dbId = p.dbId || (typeof p.id === 'number' && p.id < 1000000000000 ? p.id : null);
-      
-      if (!dbId) {
-        showToast("Please wait for this post to finish uploading before commenting.");
-        return;
-      }
-      
-      currentCommentPostId = dbId;
+      currentCommentPostId = postId;
       document.getElementById('commentsModal').classList.remove('hidden');
       document.getElementById('commentsList').innerHTML = '<p style="text-align:center; color:var(--muted); font-size:12px;">Loading comments...</p>';
-      fetchCommunityComments(dbId);
+      fetchCommunityComments(postId);
     }
     // ==================== DIRECT MESSAGES ====================
     let currentDMChatUserId = null;
@@ -4790,7 +4201,7 @@ const USE_SUPABASE_ONLY = true;
         const { data, error } = await window.supabaseClient.from('community_comments')
           .select('*')
           .eq('post_id', postId)
-          .order('created_at', { ascending: false });
+          .order('created_at', { ascending: true });
           
         if (error) throw error;
         
@@ -4820,15 +4231,12 @@ const USE_SUPABASE_ONLY = true;
           <div style="background:var(--bg); border:1px solid var(--border); border-radius:12px; padding:10px 14px; margin-bottom:10px; margin-left:${depth * 24}px; position:relative;">
             ${depth > 0 ? `<div style="position:absolute; left:-12px; top:18px; width:12px; height:2px; background:var(--border);"></div><div style="position:absolute; left:-12px; top:-10px; width:2px; height:28px; background:var(--border);"></div>` : ''}
             <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
-              ${(c.payload && c.payload.author_avatar) ? `<img src="${c.payload.author_avatar}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;">` : `<div style="width:24px;height:24px;border-radius:50%;background:var(--border);display:flex;align-items:center;justify-content:center;font-size:12px;">👤</div>`}
-              <b style="font-size:13px; color:var(--dark)">${(c.payload && c.payload.author_name) || 'Anonymous'}</b>
+              ${c.author_avatar ? `<img src="${c.author_avatar}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;">` : `<div style="width:24px;height:24px;border-radius:50%;background:var(--border);display:flex;align-items:center;justify-content:center;font-size:12px;">👤</div>`}
+              <b style="font-size:13px; color:var(--dark)">${c.author_name || 'Anonymous'}</b>
               <span style="font-size:10px; color:var(--muted); margin-left:auto;">${new Date(c.created_at).toLocaleString('en-US', {hour:'numeric', minute:'numeric', month:'short', day:'numeric'})}</span>
             </div>
             <p style="font-size:13px; color:var(--text); margin:0 0 6px 0;">${escapeHtml(c.content)}</p>
-            <div style="display:flex; align-items:center;">
-              <button onclick="setCommentReply(${c.id}, '${escapeHtml((c.payload && c.payload.author_name) || 'Anonymous')}')" style="background:none;border:none;color:var(--teal);font-size:11px;font-weight:700;cursor:pointer;padding:0;">Reply</button>
-              ${(currentUser && c.user_id === currentUser.id) ? `<button onclick="deleteCommunityComment(${c.id})" style="background:none;border:none;color:var(--red);font-size:11px;font-weight:700;cursor:pointer;padding:0;margin-left:12px;">Delete</button>` : ''}
-            </div>
+            <button onclick="setCommentReply(${c.id}, '${escapeHtml(c.author_name || 'Anonymous')}')" style="background:none;border:none;color:var(--teal);font-size:11px;font-weight:700;cursor:pointer;padding:0;">Reply</button>
           </div>
         `;
         if (byParent[c.id]) {
@@ -4840,78 +4248,19 @@ const USE_SUPABASE_ONLY = true;
       }
 
       list.innerHTML = roots.map(c => renderNode(c)).join('');
-      list.scrollTop = 0;
+      list.scrollTop = list.scrollHeight;
     }
-
-    window.deleteCommunityComment = async function(commentId) {
-      if (!window.supabaseClient) {
-        showToast("Cannot delete while offline.");
-        return;
-      }
-      try {
-        const { error } = await window.supabaseClient.from('community_comments').delete().eq('id', commentId);
-        if (error) throw error;
-        showToast("Comment deleted.");
-        if (currentCommentPostId) {
-          fetchCommunityComments(currentCommentPostId);
-        }
-      } catch (err) {
-        console.error("Error deleting comment:", err);
-        showToast("Failed to delete comment.");
-      }
-    };
 
     window.setCommentReply = function(commentId, authorName) {
       currentCommentParentId = commentId;
       const input = document.getElementById('commentInput');
       input.placeholder = `Replying to ${authorName}...`;
       input.focus();
-      // Move cursor to end after focus
-      setTimeout(() => {
-        const len = input.value.length;
-        input.setSelectionRange(len, len);
-      }, 50);
     };
-
-    // --- Android WebView IME fix: prevent cursor-jumping that reverses words ---
-    (function() {
-      let _commentValue = '';
-      let _isComposing = false;
-
-      document.addEventListener('DOMContentLoaded', function() {
-        setupCommentInputFix();
-      });
-
-      function setupCommentInputFix() {
-        const input = document.getElementById('commentInput');
-        if (!input) { setTimeout(setupCommentInputFix, 500); return; }
-
-        input.addEventListener('compositionstart', () => { _isComposing = true; });
-        input.addEventListener('compositionend', (e) => {
-          _isComposing = false;
-          _commentValue = input.value;
-        });
-        input.addEventListener('input', () => {
-          if (_isComposing) return;
-          _commentValue = input.value;
-          // Ensure cursor stays at end (fixes Vivo/Samsung WebView bug)
-          const len = input.value.length;
-          if (input.selectionStart < len - 1 && input.selectionEnd < len - 1) {
-            setTimeout(() => { input.setSelectionRange(len, len); }, 0);
-          }
-        });
-      }
-
-      window._getCommentInputValue = function() {
-        const input = document.getElementById('commentInput');
-        return input ? input.value : _commentValue;
-      };
-    })();
     
     document.getElementById('postCommentBtn')?.addEventListener('click', async () => {
       const input = document.getElementById('commentInput');
-      // Use tracked value to avoid Android WebView cursor-jumping bug
-      const content = (window._getCommentInputValue ? window._getCommentInputValue() : input.value).trim();
+      const content = input.value.trim();
       if (!content || !currentCommentPostId || !window.supabaseClient || !currentUser) {
         if (!currentUser) showToast("Please login to comment.");
         return;
@@ -4924,17 +4273,15 @@ const USE_SUPABASE_ONLY = true;
       input.disabled = true;
       
       try {
-        const dbPayload = {
+        const payload = {
           post_id: currentCommentPostId,
           user_id: currentUser.id,
+          author_name: user.name || currentUser.email.split('@')[0],
+          author_avatar: avatar,
           content: content,
-          parent_id: currentCommentParentId || null,
-          payload: {
-            author_name: user.name || currentUser.email.split('@')[0],
-            author_avatar: avatar
-          }
+          parent_id: currentCommentParentId || null
         };
-        const { error } = await window.supabaseClient.from('community_comments').insert(dbPayload);
+        const { error } = await window.supabaseClient.from('community_comments').insert(payload);
         if (error) throw error;
         
         // Reset reply state
@@ -4949,9 +4296,45 @@ const USE_SUPABASE_ONLY = true;
         input.focus();
       }
     });
+    function getOrders() {
+      return pawCache.orders || [];
+    }
 
-    // ==================== IMAGE COMPRESSION UTILITY ====================
-    // (Used by community photo uploads and avatar uploads)
+    async function saveOrders(orders) {
+      pawCache.orders = orders;
+      (!USE_SUPABASE_ONLY && localStorage.setItem('pawOrders', JSON.stringify(orders)));
+      if (!window.supabaseClient || !currentUser) return;
+      const userId = currentUser.id;
+      try {
+        for (let i = 0; i < orders.length; i++) {
+          const order = orders[i];
+          const payload = {
+            user_id: userId,
+            date: order.date || new Date().toISOString(),
+            items: order.items,
+            total: parseFloat(order.total || 0)
+          };
+          const numericId = parseInt(order.id?.replace(/\D/g, ''));
+          if (numericId && !isNaN(numericId)) {
+            payload.id = numericId;
+          }
+          await window.supabaseClient.from('orders').upsert(payload);
+        }
+      } catch (err) {
+        console.error("Error syncing orders to Supabase:", err);
+      }
+    }
+
+    async function checkoutCart() {
+      const cart = getCart(); if (!cart.length) { showToast('Cart is empty'); return; }
+      const order = { id: 'PF' + Date.now(), items: cart, total: cart.reduce((s, i) => s + i.price * i.qty, 0), date: new Date().toISOString() };
+      const orders = getOrders();
+      orders.unshift(order);
+      await saveOrders(orders);
+      saveCart([]); showToast('Demo order placed ✅');
+    }
+
+
     function compressImage(dataUrl, maxDim = 800) {
       return new Promise((resolve) => {
         const img = new Image();
@@ -4975,11 +4358,106 @@ const USE_SUPABASE_ONLY = true;
           ctx.drawImage(img, 0, 0, width, height);
           resolve(canvas.toDataURL('image/jpeg', 0.7));
         };
-        img.onerror = function () { resolve(dataUrl); };
+        img.onerror = function () {
+          resolve(dataUrl);
+        };
       });
     }
+    function handleVisionImage(event) {
+      const file = event.target.files[0]; if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async function (e) {
+        selectedVisionImage = await compressImage(e.target.result, 800);
+        document.getElementById('visionPreview').innerHTML = `<img class="scan-preview" src="${selectedVisionImage}" alt="scan image">`;
+      };
+      reader.readAsDataURL(file);
+    }
+    async function runVisionScan() {
+      const mode = document.getElementById('scanMode').value;
+      const desc = (document.getElementById('scanDescription').value || '').trim();
+      if (!selectedVisionImage && !desc) { showToast('Upload image or enter description'); return; }
+      
+      const pets = getPets();
+      const active = pets[getActivePetIdx()] || pets[0] || {};
+      
+      let title = 'Smart Scan Result';
+      let risk = 'safe';
+      let result = 'Looks okay based on the scan.';
+      let advice = 'For health issues, consult a veterinarian.';
+      
+      // If we have an image, query our backend multimodal Gemini API!
+      if (selectedVisionImage) {
+        try {
+          const resData = await callAI('/api/vision-scan', {
+            image: selectedVisionImage,
+            mode: mode,
+            description: desc,
+            petType: active.type || 'Dog'
+          });
+          
+          if (resData) {
+            title = resData.title || title;
+            risk = (resData.risk || risk).toLowerCase();
+            result = resData.result || result;
+            advice = resData.advice || advice;
+          }
+        } catch (err) {
+          console.error("Error executing live vision scan, falling back to simulator:", err);
+          showToast("AI Scan server busy. Running local simulation...");
+          
+          // Local fallback logic
+          const unsafeWords = ['chocolate', 'grape', 'raisin', 'onion', 'garlic', 'alcohol', 'caffeine', 'xylitol', 'avocado', 'spicy', 'salt'];
+          if (mode === 'food') {
+            title = 'Food Safety Scan';
+            const bad = unsafeWords.find(w => desc.toLowerCase().includes(w));
+            if (bad) { risk = 'danger'; result = `Potential unsafe food detected: ${bad}.`; advice = 'Do not feed this item. Check the unsafe food guide and ask a vet if consumed.'; }
+            else { risk = 'safe'; result = 'No obvious unsafe keyword detected in the description.'; advice = 'Still verify ingredients before feeding.'; }
+          } else if (mode === 'breed') {
+            title = 'Breed Detection'; risk = 'warn'; result = `Estimated pet type: ${active.type || 'Dog/Cat'}${active.breed ? ' · possible breed: ' + active.breed : ''}.`; advice = 'Breed estimate is based on your pet profile details.';
+          } else if (mode === 'weight') {
+            title = 'Body Weight Estimation'; risk = 'warn'; result = `Estimated weight range: ${active.weight ? (Math.max(0.5, Number(active.weight) - 1).toFixed(1) + '–' + (Number(active.weight) + 1).toFixed(1) + ' kg') : 'profile weight not available'}.`; advice = 'Use a scale for accurate weight tracking. Log the verified weight in Tracker.';
+          } else if (mode === 'fur') {
+            title = 'Skin / Fur Check';
+            if (['red', 'rash', 'wound', 'patch', 'itch', 'hair loss', 'bald'].some(w => desc.toLowerCase().includes(w))) { risk = 'danger'; result = 'Possible skin/fur concern mentioned.'; advice = 'Monitor closely and consult a veterinarian if irritation, wounds, or hair loss continue.'; }
+            else { risk = 'safe'; result = 'No obvious issue detected from the provided description.'; advice = 'Keep checking coat shine, itching, smell, and shedding.'; }
+          }
+        }
+      } else {
+        // Local simulation for text-only inputs
+        const unsafeWords = ['chocolate', 'grape', 'raisin', 'onion', 'garlic', 'alcohol', 'caffeine', 'xylitol', 'avocado', 'spicy', 'salt'];
+        if (mode === 'food') {
+          title = 'Food Safety Scan';
+          const bad = unsafeWords.find(w => desc.toLowerCase().includes(w));
+          if (bad) { risk = 'danger'; result = `Potential unsafe food detected: ${bad}.`; advice = 'Do not feed this item. Check the unsafe food guide and ask a vet if consumed.'; }
+          else { risk = 'safe'; result = 'No obvious unsafe keyword detected in the description.'; advice = 'Still verify ingredients before feeding.'; }
+        } else if (mode === 'breed') {
+          title = 'Breed Detection'; risk = 'warn'; result = `Estimated pet type: ${active.type || 'Dog/Cat'}${active.breed ? ' · possible breed: ' + active.breed : ''}.`; advice = 'Breed estimate is based on your pet profile details.';
+        } else if (mode === 'weight') {
+          title = 'Body Weight Estimation'; risk = 'warn'; result = `Estimated weight range: ${active.weight ? (Math.max(0.5, Number(active.weight) - 1).toFixed(1) + '–' + (Number(active.weight) + 1).toFixed(1) + ' kg') : 'profile weight not available'}.`; advice = 'Use a scale for accurate weight tracking. Log the verified weight in Tracker.';
+        } else if (mode === 'fur') {
+          title = 'Skin / Fur Check';
+          if (['red', 'rash', 'wound', 'patch', 'itch', 'hair loss', 'bald'].some(w => desc.toLowerCase().includes(w))) { risk = 'danger'; result = 'Possible skin/fur concern mentioned.'; advice = 'Monitor closely and consult a veterinarian if irritation, wounds, or hair loss continue.'; }
+          else { risk = 'safe'; result = 'No obvious issue detected from the provided description.'; advice = 'Keep checking coat shine, itching, smell, and shedding.'; }
+        }
+      }
+      
+      const cls = risk === 'danger' ? 'risk-danger' : risk === 'warn' ? 'risk-warn' : 'risk-safe';
+      const html = `<div class="scan-result"><h3 style="font-weight:900">${title}</h3><span class="scan-risk ${cls}">${risk.toUpperCase()}</span><p style="font-size:14px;line-height:1.5;margin-top:8px"><b>Result:</b> ${result}</p><p style="font-size:13px;color:var(--muted);line-height:1.5"><b>Advice:</b> ${advice}</p></div>`;
+      document.getElementById('visionResultBox').innerHTML = html;
+      
+      const hist = getScanHistory();
+      hist.unshift({ id: Date.now(), mode, title, risk, result, advice, image: selectedVisionImage, date: new Date().toISOString() });
+      saveScanHistory(hist.slice(0, 25));
+      renderVisionHistory();
+      renderRecordsTab();
+    }
+    function renderVisionHistory() {
+      const box = document.getElementById('scanHistoryBox'); if (!box) return;
+      const hist = getScanHistory();
+      if (!hist.length) { box.innerHTML = `<div class="card empty-state"><h3>No scans yet</h3><p>Upload a photo to test the smart scan prototype.</p></div>`; return; }
+      box.innerHTML = hist.map(h => `<div class="history-item"><div class="history-icon">${h.mode === 'food' ? '🥣' : h.mode === 'breed' ? '🐾' : h.mode === 'weight' ? '⚖️' : '🩺'}</div><div class="history-text"><b>${h.title}</b><span>${h.risk.toUpperCase()} · ${new Date(h.date).toLocaleString()}</span></div></div>`).join('');
+    }
     function escapeHtml(str) { return String(str).replace(/[&<>"]/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[s])); }
-
 
 
     // ==================== HOMEMADE FOOD PRO PAGE ====================
@@ -8439,29 +7917,6 @@ if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App
   window.Capacitor.Plugins.App.addListener('appUrlOpen', async (data) => {
     if (data.url.includes('/auth/v1/callback') || data.url.includes('access_token=')) {
       if (window.supabaseClient) {
-
-        // Parse hash for password reset recovery token
-        const hash = data.url.split('#')[1];
-        if (hash) {
-          const params = new URLSearchParams(hash);
-          const type = params.get('type');
-          if (type === 'recovery') {
-            const accessToken = params.get('access_token');
-            const refreshToken = params.get('refresh_token');
-            if (accessToken && refreshToken) {
-              const { data: sessionData, error } = await window.supabaseClient.auth.setSession({
-                access_token: accessToken,
-                refresh_token: refreshToken
-              });
-              if (!error) {
-                currentUser = sessionData.session.user;
-                document.getElementById('updatePasswordModal').classList.remove('hidden');
-                return; // Don't run standard auth flow
-              }
-            }
-          }
-        }
-
         setTimeout(async () => {
           const { data: { session } } = await window.supabaseClient.auth.getSession();
           if (session && session.user) {
@@ -8491,29 +7946,6 @@ if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App
   });
 }
 
-// Web Fallback for Password Reset Hash
-window.addEventListener('load', async () => {
-  if (window.location.hash && window.location.hash.includes('type=recovery')) {
-    if (window.supabaseClient) {
-      const hash = window.location.hash.substring(1);
-      const params = new URLSearchParams(hash);
-      const accessToken = params.get('access_token');
-      const refreshToken = params.get('refresh_token');
-      if (accessToken && refreshToken) {
-        const { data: sessionData, error } = await window.supabaseClient.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken
-        });
-        if (!error) {
-          currentUser = sessionData.session.user;
-          document.getElementById('updatePasswordModal').classList.remove('hidden');
-          window.history.replaceState(null, null, window.location.pathname); // clear hash so it doesn't trigger again
-        }
-      }
-    }
-  }
-});
-
 
 window.completePlannerTask = completePlannerTask;
 window.uncompletePlannerTask = uncompletePlannerTask;
@@ -8525,11 +7957,9 @@ window.deletePlannerTask = deletePlannerTask;
 
 window.switchRecordsSub = function(sub) {
     document.getElementById('rsub-history').classList.remove('active');
+    document.getElementById('rsub-reports').classList.remove('active');
     document.getElementById('rinner-history').style.display = 'none';
-    const repTab = document.getElementById('rsub-reports');
-    if (repTab) repTab.classList.remove('active');
-    const repInner = document.getElementById('rinner-reports');
-    if (repInner) repInner.style.display = 'none';
+    document.getElementById('rinner-reports').style.display = 'none';
     
     document.getElementById('rsub-' + sub).classList.add('active');
     document.getElementById('rinner-' + sub).style.display = 'block';
@@ -8554,19 +7984,7 @@ window.renderMedicalRecordsBox = function() {
         return;
     }
     
-    const petId = pet.id || pet.supabase_id || ('local_' + activeIdx);
-
-    // Load from localStorage if cache is empty
-    if (!pawCache.medicalRecords || pawCache.medicalRecords.length === 0) {
-        try {
-            const stored = localStorage.getItem('pawMedicalRecords_' + activeIdx);
-            if (stored) pawCache.medicalRecords = JSON.parse(stored);
-        } catch(e) {}
-    }
-
-    const records = (pawCache.medicalRecords || []).filter(r =>
-        String(r.pet_id) === String(petId) || String(r.pet_id) === String(pet.id) || String(r.pet_id) === String(activeIdx)
-    );
+    const records = (pawCache.medicalRecords || []).filter(r => String(r.pet_id) === String(pet.id));
     
     if (records.length === 0) {
         box.innerHTML = `
@@ -8684,13 +8102,9 @@ window.saveMedicalRecord = async function() {
     const pet = getPets()[petIdx];
     if (!pet) return showToast("No pet selected.");
     
-    const petId = pet.id || pet.supabase_id || ('local_' + petIdx);
-    const householdId = currentHouseholdId || currentUser.id;
-
     const payload = {
         user_id: currentUser.id,
-        household_id: householdId,
-        pet_id: petId,
+        pet_id: pet.id,
         record_type: document.getElementById('medRecordType').value,
         vaccine_name: document.getElementById('medRecordTitle').value,
         date: document.getElementById('medRecordDate').value,
@@ -8699,7 +8113,7 @@ window.saveMedicalRecord = async function() {
         notes: document.getElementById('medRecordNotes').value,
         status: document.getElementById('medRecordStatus').value
     };
-    if (document.getElementById('medRecordReason')) {
+    if(document.getElementById('medRecordReason')) {
         payload.reason = document.getElementById('medRecordReason').value;
     }
     if (id) payload.id = id;
@@ -8708,43 +8122,22 @@ window.saveMedicalRecord = async function() {
     if (!payload.vaccine_name) return showToast("Title is required.");
     
     showToast("Saving...");
-
-    // Try Supabase first
-    if (window.supabaseClient) {
-        try {
-            const { data, error } = await window.supabaseClient.from('medical_records').upsert(payload).select().single();
-            if (error) throw error;
-            if (!pawCache.medicalRecords) pawCache.medicalRecords = [];
-            const existingIdx = pawCache.medicalRecords.findIndex(x => String(x.id) === String(data.id));
-            if (existingIdx > -1) {
-                pawCache.medicalRecords[existingIdx] = data;
-            } else {
-                pawCache.medicalRecords.push(data);
-            }
-            // Also save to localStorage as backup
-            try { localStorage.setItem('pawMedicalRecords_' + petIdx, JSON.stringify(pawCache.medicalRecords)); } catch(e) {}
-            closeMedicalRecordModal();
-            renderMedicalRecordsBox();
-            showToast("Record saved ✅");
-            return;
-        } catch(err) {
-            console.error("Supabase save failed, falling back to local:", err);
-        }
-    }
-
-    // Fallback: save to localStorage only
-    if (!pawCache.medicalRecords) pawCache.medicalRecords = [];
-    const localRecord = { ...payload, id: id || ('local_' + Date.now()) };
-    const existingIdx = pawCache.medicalRecords.findIndex(x => String(x.id) === String(localRecord.id));
-    if (existingIdx > -1) {
-        pawCache.medicalRecords[existingIdx] = localRecord;
+    const { data, error } = await window.supabaseClient.from('medical_records').upsert({...payload, household_id: currentHouseholdId}).select().single();
+    if (error) {
+        console.error(error);
+        showToast("Error saving record.");
     } else {
-        pawCache.medicalRecords.push(localRecord);
+        if (!pawCache.medicalRecords) pawCache.medicalRecords = [];
+        const existingIdx = pawCache.medicalRecords.findIndex(x => String(x.id) === String(data.id));
+        if (existingIdx > -1) {
+            pawCache.medicalRecords[existingIdx] = data;
+        } else {
+            pawCache.medicalRecords.push(data);
+        }
+        closeMedicalRecordModal();
+        renderMedicalRecordsBox();
+        showToast("Record saved successfully ✅");
     }
-    try { localStorage.setItem('pawMedicalRecords_' + petIdx, JSON.stringify(pawCache.medicalRecords)); } catch(e) {}
-    closeMedicalRecordModal();
-    renderMedicalRecordsBox();
-    showToast("Record saved locally ✅");
 };
 
 window.deleteMedicalRecord = async function(id) {
@@ -8948,3 +8341,62 @@ window.renderRecordsTab = function() {
     renderMedicalReportsBox();
 };
 
+
+
+// ==================== DASHBOARD MINI CHART ====================
+let dashboardMiniChartInstance = null;
+window.renderDashboardMiniChart = function(pets, activeIdx, noPet) {
+  if (typeof Chart === 'undefined') return;
+  const canvas = document.getElementById('dashboardMiniChart');
+  if (!canvas) return;
+  
+  if (noPet || !pets || pets.length === 0) {
+    if (dashboardMiniChartInstance) { dashboardMiniChartInstance.destroy(); dashboardMiniChartInstance = null; }
+    return;
+  }
+
+  const activePet = pets[activeIdx];
+  const ctx = canvas.getContext('2d');
+  if (dashboardMiniChartInstance) { dashboardMiniChartInstance.destroy(); }
+
+  const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  // Dummy data. In a real app this pulls from local DB/Supabase logs.
+  const feedings = [2, 3, 2, 2, 3, 2, 4];
+  const water = [80, 90, 70, 85, 95, 100, 80];
+
+  dashboardMiniChartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: 'Feedings',
+          data: feedings,
+          borderColor: '#FF7A00',
+          backgroundColor: 'rgba(255, 122, 0, 0.1)',
+          tension: 0.4,
+          fill: true
+        },
+        {
+          label: 'Water %',
+          data: water,
+          borderColor: '#3B82F6',
+          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+          tension: 0.4,
+          fill: true
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false }
+      },
+      scales: {
+        x: { display: true, grid: { display: false } },
+        y: { display: false, min: 0 }
+      }
+    }
+  });
+};

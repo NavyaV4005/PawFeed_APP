@@ -1,17 +1,35 @@
 <!DOCTYPE html>
-<!-- index.html — PawFeed markup only. CSS → styles.css, JS → app.js. No logic changes. -->
+<!-- index.html — PawFeed markup only. CSS → styles.css, JS → app.js. -->
 <html lang="en">
 
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="description"
-    content="PawFeed — AI-powered pet care app for feeding schedules, health tracking, and more." />
+  <meta name="description" content="PawFeed — AI-powered pet care for feeding schedules, nutrition, health tracking, and more. Smart care for every pet." />
+  <meta name="theme-color" content="#FF7A00" />
   <title>PawFeed — AI Pet Care App</title>
 
-  <!-- Google Fonts: Nunito + Poppins -->
+  <!-- Open Graph / Social Preview -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="PawFeed — AI-Powered Pet Care" />
+  <meta property="og:description" content="Feeding schedules, nutrition plans, health tracking, and a full AI assistant for every pet — all in one place." />
+  <meta property="og:image" content="/icon-192.png" />
+  <meta property="og:url" content="https://pawfeed.app" />
+  <meta property="og:site_name" content="PawFeed" />
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="PawFeed — AI Pet Care" />
+  <meta name="twitter:description" content="Smart feeding, nutrition, and health tracking for your pets." />
+  <meta name="twitter:image" content="/icon-192.png" />
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+  <link rel="apple-touch-icon" href="/icon-192.png" />
+  <link rel="shortcut icon" href="/icon-192.png" />
+
+  <!-- Google Fonts: Inter + Nunito + Poppins -->
   <link
-    href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Poppins:wght@400;500;600;700&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Nunito:wght@400;600;700;800;900&family=Poppins:wght@400;500;600;700&display=swap"
     rel="stylesheet">
 
   <!-- App styles -->
@@ -283,10 +301,10 @@
       </select>
 
       <label>Age (years)</label>
-      <input id="mpetAge" type="number" placeholder="Age in years" min="0" max="30" step="0.5" />
+      <input id="mpetAge" type="number" placeholder="Age in years" min="0" max="40" step="0.5" />
 
       <label>Weight (kg)</label>
-      <input id="mpetWeight" type="number" placeholder="Weight in kg" min="0" step="0.1" />
+      <input id="mpetWeight" type="number" placeholder="Weight in kg" min="0" max="99" step="0.1" />
 
       <label>Daily Water Goal (ml)</label>
       <input id="mpetWaterGoal" type="number" placeholder="e.g. 500" min="100" step="50" value="500" />
@@ -374,6 +392,22 @@
     </div>
   </div>
 
+  <!-- RESCHEDULE MODAL -->
+  <div id="rescheduleModal" class="modal-overlay hidden">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2 style="font-size:20px;font-weight:900;color:var(--dark)">🗓️ Reschedule Task</h2>
+        <div class="modal-close" onclick="closeRescheduleModal()">✕</div>
+      </div>
+      <p id="rescheduleTaskTitle" class="subtitle" style="margin-top:0"></p>
+      <input type="hidden" id="rescheduleTaskId" />
+      <label>New Date & Time</label>
+      <input id="rescheduleDateTime" type="datetime-local" />
+      <button class="primary-btn" onclick="saveRescheduleTask()">Save New Time</button>
+      <button class="secondary-btn" onclick="closeRescheduleModal()">Cancel</button>
+    </div>
+  </div>
+
   <!-- GALLERY MODAL -->
   <div id="galleryModal" class="modal-overlay hidden">
     <div class="modal-box">
@@ -442,22 +476,16 @@
         </div>
         <div id="forgotStep2" style="display:none;text-align:center;padding:10px 0">
           <div style="font-size:48px;margin-bottom:12px">✅</div>
-          <h3 style="font-weight:900;color:var(--dark);margin-bottom:8px">Account Found!</h3>
-          <p class="subtitle" style="margin:0 0 16px">Your password has been sent to your email. Please check your
-            inbox.</p>
-          <div id="forgotPasswordHint"
-            style="background:var(--pill-bg);border:1px solid var(--border);border-radius:16px;padding:14px;margin-bottom:16px;font-size:14px;color:var(--text);font-weight:700">
-          </div>
+          <h3 style="font-weight:900;color:var(--dark);margin-bottom:8px">Check Your Email</h3>
+          <p class="subtitle" style="margin:0 0 16px">If an account exists for this email, a reset link has been sent. Please check your inbox (and spam folder).</p>
           <button class="primary-btn" onclick="closeForgotPassword()">Back to Login</button>
         </div>
         <div id="forgotStep3" style="display:none;text-align:center;padding:10px 0">
-          <div style="font-size:48px;margin-bottom:12px">❌</div>
-          <h3 style="font-weight:900;color:var(--dark);margin-bottom:8px">No Account Found</h3>
-          <p class="subtitle" style="margin:0 0 16px">No account registered with that email. Try again or create a new
-            account.</p>
+          <div style="font-size:48px;margin-bottom:12px">🤔</div>
+          <h3 id="forgotErrorTitle" style="font-weight:900;color:var(--dark);margin-bottom:8px">Request Failed</h3>
+          <p id="forgotErrorText" class="subtitle" style="margin:0 0 16px">Something went wrong. Please try again.</p>
           <button class="primary-btn" onclick="resetForgotSteps()">Try Again</button>
-          <button class="secondary-btn" onclick="closeForgotPassword();showScreen('registerScreen')">Create
-            Account</button>
+          <button class="secondary-btn" onclick="closeForgotPassword();showScreen('registerScreen')">Create Account</button>
         </div>
       </div>
     </div>
@@ -498,6 +526,49 @@
 
     <!-- MAIN APP -->
     <div id="mainApp" class="hidden">
+    <div class="page-wrapper">
+      <!-- ── DESKTOP SIDEBAR NAV ── -->
+      <nav class="sidebar" aria-label="Main navigation" id="appSidebar">
+        <div class="sidebar-logo">🐾 PawFeed</div>
+        <div class="sidebar-divider"></div>
+        <div class="nav-item" id="snav-home" onclick="openTab('home')" tabindex="0" role="button" aria-label="Home">
+          <div>🏠</div><span>Home</span>
+        </div>
+        <div class="nav-item" id="snav-careplanner" onclick="openTab('careplanner')" tabindex="0" role="button" aria-label="Care Planner">
+          <div>🗓️</div><span>Planner</span>
+        </div>
+        <div class="nav-item" id="snav-combo-social" onclick="openCombo('social','community')" tabindex="0" role="button" aria-label="Social & Records">
+          <div>👥</div><span>Social</span>
+        </div>
+        <div class="nav-item" id="snav-homemade" onclick="openTab('homemade')" tabindex="0" role="button" aria-label="Homemade Food Studio">
+          <div>🍳</div><span>Food Studio</span>
+        </div>
+        <div class="nav-item" id="snav-ai" onclick="openTab('ai')" tabindex="0" role="button" aria-label="PawFeed AI">
+          <div>🤖</div><span>AI Chat</span>
+        </div>
+        <div class="sidebar-divider"></div>
+        <!-- Extra tabs accessible from sidebar -->
+        <div class="nav-item" id="snav-plan" onclick="openTab('plan')" tabindex="0" role="button" aria-label="Food Plan">
+          <div>🍽️</div><span>Food Plan</span>
+        </div>
+        <div class="nav-item" id="snav-tracker" onclick="openTab('tracker')" tabindex="0" role="button" aria-label="Pet Tracker">
+          <div>📊</div><span>Tracker</span>
+        </div>
+        <div class="nav-item" id="snav-care" onclick="openTab('care')" tabindex="0" role="button" aria-label="Care & Safety">
+          <div>💧</div><span>Care</span>
+        </div>
+        <div class="sidebar-bottom">
+          <div class="sidebar-divider"></div>
+          <div class="nav-item" onclick="toggleDarkMode()" tabindex="0" role="button" aria-label="Toggle dark mode">
+            <div id="sidebarDarkIcon">🌙</div><span>Dark Mode</span>
+          </div>
+          <div class="nav-item" id="snav-profile" onclick="openTab('profile')" tabindex="0" role="button" aria-label="Profile">
+            <div>👤</div><span>Profile</span>
+          </div>
+        </div>
+      </nav>
+      <!-- ── MAIN CONTENT AREA ── -->
+      <div class="main-content-col" style="display:flex; flex-direction:column; width:100%; position:relative; overflow-x:hidden; min-height:100vh;">
       <div class="topbar">
         <div>
           <div class="top-title">PawFeed 🐾</div>
@@ -630,7 +701,6 @@
         <p class="subtitle">Based on pet type, age, weight, preference, and health condition.</p>
         <div id="planPetTabs" class="pet-tabs"></div>
         <div id="foodPlanBox"></div>
-        <button class="primary-btn" onclick="openLogModal()" style="margin-top:8px">+ Log a Feeding</button>
       </div>
 
       <!-- TRACKER TAB -->
@@ -688,6 +758,8 @@
           </div>
           <div class="chat-row">
             <input id="aiInput" type="text" placeholder="Ask something..."
+              autocomplete="off" autocorrect="off" spellcheck="false" dir="ltr"
+              style="-webkit-user-select: auto; user-select: auto; transform: translateZ(0);"
               onkeydown="if(event.key==='Enter') sendAIMessage()" />
             <button onclick="sendAIMessage()">➤</button>
           </div>
@@ -705,13 +777,13 @@
 
       <!-- COMMUNITY TAB -->
       <div id="communityTab" class="screen tab-screen hidden">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div class="planner-desktop-grid">
+          <div class="planner-left-col">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">
           <div>
             <h2 style="font-weight:900;color:var(--dark)">👥 Pet Community</h2>
             <p class="subtitle" style="margin-bottom:0;">Share pet photos and updates.</p>
           </div>
-          <button class="primary-btn" onclick="openDirectMessagesModal()"
-            style="padding:8px 12px; font-size:13px; border-radius:12px;">💬 DMs</button>
         </div>
         <div class="card">
           <label>Post Type</label>
@@ -730,62 +802,17 @@
           <div id="communityPhotoPreview"></div>
           <button class="primary-btn" onclick="addCommunityPost()" style="margin-top:4px">🚀 Post to Community</button>
         </div>
-        <div class="section-header">
-          <h3 class="section-title">Latest Feed</h3>
-        </div>
-        <div id="communityFeedBox"></div>
+        </div> <!-- End left column -->
+        <div class="planner-right-col">
+          <div class="section-header">
+            <h3 class="section-title" style="margin-top:0;">Latest Feed</h3>
+          </div>
+          <div id="communityFeedBox"></div>
+        </div> <!-- End right column -->
+        </div> <!-- End grid -->
       </div>
 
-      <!-- MARKETPLACE TAB -->
-      <div id="marketTab" class="screen tab-screen hidden">
-        <h2 style="font-weight:900;color:var(--dark)">🛒 Pet Food Marketplace</h2>
-        <p class="subtitle">Shop for pet food and care items.</p>
-        <div class="card">
-          <label>Filter by Pet Type</label>
-          <select id="marketFilter" onchange="renderMarketplace()">
-            <option value="All">All Pets</option>
-            <option>Dog</option>
-            <option>Cat</option>
-            <option>Rabbit</option>
-            <option>Bird</option>
-            <option>Hamster</option>
-          </select>
-        </div>
-        <div id="marketProductsBox"></div>
-        <div class="card">
-          <h3 style="font-weight:900">🧾 Cart</h3>
-          <div id="cartBox"></div>
-          <button class="primary-btn" onclick="checkoutCart()">Place Order</button>
-        </div>
-      </div>
-
-
-
-      <!-- COMPUTER VISION TAB -->
-      <div id="visionTab" class="screen tab-screen hidden">
-        <h2 style="font-weight:900;color:var(--dark)">📷 Smart Vision Scan</h2>
-        <p class="subtitle">Upload a photo to simulate food safety, breed, body weight, and skin/fur checks.</p>
-        <div class="card">
-          <label>Scan Mode</label>
-          <select id="scanMode">
-            <option value="food">Scan Pet Food / Unsafe Food</option>
-            <option value="breed">Pet Breed Detection</option>
-            <option value="weight">Body Weight Estimation</option>
-            <option value="fur">Skin / Fur Issue Detection</option>
-          </select>
-          <label>Optional Description</label>
-          <input id="scanDescription" placeholder="Example: chocolate biscuit, golden dog, red skin patch" />
-          <input type="file" id="visionInput" accept="image/*" capture="environment" style="display:none"
-            onchange="handleVisionImage(event)" />
-          <button class="secondary-btn" onclick="document.getElementById('visionInput').click()">📷 Upload / Use
-            Camera</button>
-          <div id="visionPreview"></div>
-          <button class="primary-btn" onclick="runVisionScan()">Run Smart Scan</button>
-        </div>
-        <div id="visionResultBox"></div>
-        <h3 class="section-title">Recent Scans</h3>
-        <div id="scanHistoryBox"></div>
-      </div>
+      <!-- Marketplace and Vision tabs removed -->
 
 
 
@@ -928,7 +955,9 @@
 
       <!-- PROFILE TAB -->
       <div id="profileTab" class="screen tab-screen hidden">
-        <h2 style="font-weight:900;color:var(--dark)">👤 My Profile</h2>
+        <div class="planner-desktop-grid">
+          <div class="planner-left-col">
+            <h2 style="font-weight:900;color:var(--dark)">👤 My Profile</h2>
 
         <!-- User Avatar -->
         <div class="avatar-upload">
@@ -970,8 +999,10 @@
             <button class="primary-btn" onclick="joinHousehold()" style="width:auto;padding:0 12px;">Join</button>
           </div>
         </div>
-
-        <!-- Settings -->
+          </div> <!-- End left column -->
+          
+          <div class="planner-right-col">
+            <!-- Settings -->
         <div class="card">
           <div class="toggle-wrap">
             <span class="toggle-label">🔔 Feeding Reminders</span>
@@ -1012,7 +1043,9 @@
           </div>
         </div>
 
-        <button class="danger-btn" style="margin-top:16px" onclick="logoutUser()">Logout</button>
+            <button class="danger-btn" style="margin-top:16px" onclick="logoutUser()">Logout</button>
+          </div> <!-- End right column -->
+        </div> <!-- End grid -->
       </div>
 
       <!-- CARE PLANNER TAB -->
@@ -1023,7 +1056,9 @@
         <!-- Active Pet Selector -->
         <div id="plannerPetTabs" class="pet-tabs"></div>
 
-        <!-- Calendar Card -->
+        <div class="planner-desktop-grid">
+          <div class="planner-left-col">
+            <!-- Calendar Card -->
         <div class="card">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
             <h3 id="plannerMonthLabel" style="font-weight:900;color:var(--dark)">June 2026</h3>
@@ -1085,19 +1120,23 @@
 
           <button class="primary-btn" onclick="addPlannerTask()" style="margin-top:14px">Add to Care Plan</button>
         </div>
+        </div> <!-- End planner-left-col -->
 
+        <div class="planner-right-col">
         <!-- Tasks Listing Sections -->
-        <h3 class="section-title">📋 Today's Tasks</h3>
+        <div id="plannerIncompleteSection" style="display:none">
+          <h3 class="section-title" id="plannerIncompleteHeader" style="color:var(--red)">❌ Incomplete Tasks</h3>
+          <div id="plannerIncompleteList"></div>
+        </div>
+
+        <h3 class="section-title" id="plannerPendingHeader">📋 Today's Tasks</h3>
         <div id="plannerPendingList"></div>
 
-        <h3 class="section-title">✅ Completed Today</h3>
+        <h3 class="section-title" id="plannerCompletedHeader">✅ Completed Today</h3>
         <div id="plannerCompletedList"></div>
 
-        <h3 class="section-title">🗓️ Upcoming Tasks</h3>
-        <div id="plannerUpcomingList"></div>
-
-        <h3 class="section-title">📜 Planner History</h3>
-        <div id="plannerHistoryBox" style="margin-top:10px"></div>
+        </div> <!-- End planner-right-col -->
+        </div> <!-- End planner-desktop-grid -->
       </div>
 
       <!-- COMBO: SOCIAL + GAME -->
@@ -1119,11 +1158,11 @@
         </div>
         
         <div class="combo-sub-tabs" style="margin-top: 15px;">
-          <div class="combo-sub-tab active" id="rsub-history" onclick="switchRecordsSub('history')">📝 History</div>
-          <div class="combo-sub-tab" id="rsub-reports" onclick="switchRecordsSub('reports')">📄 Reports</div>
+          <div class="combo-sub-tab active" id="rsub-history" onclick="switchRecordsSub('history')">💉 Vaccination Record</div>
+          <div class="combo-sub-tab" id="rsub-reports" onclick="switchRecordsSub('reports')">📄 Medical Reports</div>
         </div>
         
-        <!-- Medical History Sub-tab -->
+        <!-- Vaccination Record Sub-tab -->
         <div id="rinner-history">
             <button class="btn btn-primary" style="width:100%;margin-bottom:15px;" onclick="openMedicalRecordModal()">+ Add Record</button>
             <div id="medicalRecordsBox"></div>
@@ -1284,10 +1323,13 @@
               style="font-size:24px;background:none;border:none;cursor:pointer;color:var(--dark)">✕</button>
           </div>
           <div id="commentsList" style="flex:1; overflow-y:auto; margin-bottom:16px; padding-right:8px;"></div>
-          <div style="display:flex;gap:8px;flex-shrink:0">
-            <input type="text" id="commentInput" placeholder="Add a comment..."
-              style="flex:1; border-radius:20px; border:1px solid var(--border); padding:10px 16px; background:var(--card-2); color:var(--text); outline:none;">
-            <button class="primary-btn" id="postCommentBtn" style="border-radius:20px; padding:10px 20px;">Post</button>
+          <div style="display:flex;gap:8px;flex-shrink:0;align-items:flex-end">
+            <textarea id="commentInput" placeholder="Add a comment..."
+              rows="1"
+              autocomplete="off" autocorrect="off" spellcheck="false" dir="ltr"
+              onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();document.getElementById('postCommentBtn').click();}"
+              style="flex:1; border-radius:20px; border:1px solid var(--border); padding:10px 16px; background:var(--card-2); color:var(--text); outline:none; resize:none; font-family:inherit; font-size:14px; line-height:1.4; max-height:80px; overflow-y:auto; -webkit-user-select:text; user-select:text;"></textarea>
+            <button class="primary-btn" id="postCommentBtn" style="border-radius:20px; padding:10px 20px; flex-shrink:0;">Post</button>
           </div>
         </div>
       </div>
@@ -1334,7 +1376,9 @@
             <div id="dmMessageList"
               style="flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:16px; background:var(--bg);"></div>
             <div class="dm-input-area">
-              <input type="text" id="dmInput" placeholder="Message...">
+              <input type="text" id="dmInput" placeholder="Message..."
+                autocomplete="off" autocorrect="off" spellcheck="false" dir="ltr"
+                style="-webkit-user-select: auto; user-select: auto; transform: translateZ(0);">
               <button class="send-btn" onclick="sendDM()">➤</button>
             </div>
           </div>
@@ -1342,27 +1386,27 @@
         </div>
       </div>
 
-      <!-- BOTTOM NAV -->
-      <div class="bottom-nav">
-        <div class="nav-item active" id="nav-home" onclick="openTab('home')">
+      <!-- BOTTOM NAV (mobile only) -->
+      <div class="bottom-nav" role="navigation" aria-label="Mobile navigation">
+        <div class="nav-item active" id="nav-home" onclick="openTab('home')" role="button" tabindex="0">
           <div>🏠</div>Home
         </div>
-        <div class="nav-item" id="nav-careplanner" onclick="openTab('careplanner')">
+        <div class="nav-item" id="nav-careplanner" onclick="openTab('careplanner')" role="button" tabindex="0">
           <div>🗓️</div>Planner
         </div>
-        <div class="nav-item" id="nav-combo-social" onclick="openCombo('social','records')">
+        <div class="nav-item" id="nav-combo-social" onclick="openCombo('social','community')" role="button" tabindex="0">
           <div>👥</div>Social
         </div>
-        <div class="nav-item" id="nav-homemade" onclick="openTab('homemade')">
+        <div class="nav-item" id="nav-homemade" onclick="openTab('homemade')" role="button" tabindex="0">
           <div>🍳</div>Food
         </div>
-        <div class="nav-item" id="nav-ai" onclick="openTab('ai')">
+        <div class="nav-item" id="nav-ai" onclick="openTab('ai')" role="button" tabindex="0">
           <div>🤖</div>AI
         </div>
-
-      </div>
-    </div>
-  </div>
+      </div><!-- /.bottom-nav -->
+      </div><!-- /.main-content-col -->
+    </div><!-- /.page-wrapper -->
+    </div><!-- /#mainApp -->
 
 
 
@@ -1378,7 +1422,7 @@
   <script src="recipes.js"></script>
 
   <!-- PawFeed application logic -->
-  <script src="app.js?v=20260722-2"></script>
+  <script src="app.js?v=20260725-web"></script>
 
 
 
@@ -1448,6 +1492,30 @@
       </div>
     </div>
 
+
+  <!-- UPDATE PASSWORD MODAL (From Deep Link) -->
+  <div id="updatePasswordModal" class="modal-overlay hidden" style="z-index:999999;">
+    <div class="modal-content" style="max-width:350px">
+      <div class="modal-header">
+        <h3 style="margin:0">🔒 Set New Password</h3>
+        <button class="close-btn" onclick="closeUpdatePasswordModal()">✕</button>
+      </div>
+      <div style="padding:20px 0">
+        <p class="subtitle" style="margin-top:0;margin-bottom:15px;font-size:14px;">Enter your new password below.</p>
+        <div class="input-group">
+          <label>New Password</label>
+          <input type="password" id="updatePasswordInput" placeholder="At least 8 characters">
+        </div>
+        <div class="input-group">
+          <label>Confirm Password</label>
+          <input type="password" id="updatePasswordConfirmInput" placeholder="Must match">
+        </div>
+        <div id="updatePasswordError" style="color:var(--red);font-size:13px;font-weight:600;margin-bottom:15px;display:none;"></div>
+        <button class="primary-btn" id="updatePasswordBtn" onclick="submitNewPassword()" style="width:100%;margin-bottom:10px">Update Password</button>
+        <button class="secondary-btn" style="width:100%" onclick="closeUpdatePasswordModal()">Cancel & Log Out</button>
+      </div>
+    </div>
+  </div>
 </body>
 
 </html>

@@ -3226,3 +3226,306 @@ body.dark-mode .med-report-card {
 body.dark-mode .med-icon-box {
     box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
 }
+
+/* ═══════════════════════════════════════════════════
+   FOCUS STATES — Keyboard / Mouse Accessibility
+   ═══════════════════════════════════════════════════ */
+button:focus-visible,
+[tabindex="0"]:focus-visible,
+.nav-item:focus-visible {
+  outline: 3px solid var(--orange);
+  outline-offset: 2px;
+}
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--orange);
+  outline-offset: 0;
+}
+/* Remove default outline for mouse users, keep for keyboard */
+:focus:not(:focus-visible) { outline: none; }
+
+/* ═══════════════════════════════════════════════════
+   FONT — Use Inter as primary web font
+   ═══════════════════════════════════════════════════ */
+body {
+  font-family: 'Inter', 'Poppins', 'Nunito', sans-serif;
+}
+
+/* ═══════════════════════════════════════════════════
+   TABLET  (600px – 899px)
+   ═══════════════════════════════════════════════════ */
+@media (min-width: 600px) and (max-width: 899px) {
+  .app-shell {
+    max-width: 680px;
+    margin: 0 auto;
+  }
+  .stats-row { grid-template-columns: repeat(3, 1fr); }
+  .quick-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* ═══════════════════════════════════════════════════
+   DESKTOP  (≥ 900px) — Sidebar Layout
+   ═══════════════════════════════════════════════════ */
+@media (min-width: 900px) {
+  /* ── Root body / page ── */
+  body {
+    background: var(--bg);
+  }
+  [data-theme="dark"] body {
+    background: radial-gradient(circle at 30% 0%, #1E293B 0%, #0B1120 100%);
+  }
+
+  /* ── Page wrapper: sidebar + content grid ── */
+  .page-wrapper {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    min-height: 100vh;
+    max-width: 1440px;
+    margin: 0 auto;
+    position: relative;
+  }
+
+  /* ── Desktop Sidebar ── */
+  .sidebar {
+    display: flex !important;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    background: var(--nav-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-right: 1px solid var(--border);
+    padding: 20px 12px;
+    flex-direction: column;
+    gap: 4px;
+    z-index: 25;
+    box-shadow: 4px 0 24px rgba(0,0,0,0.06);
+    transition: background 0.3s, box-shadow 0.3s;
+  }
+  .sidebar::-webkit-scrollbar { width: 0; }
+
+  .sidebar-logo {
+    font-size: 20px;
+    font-weight: 900;
+    color: var(--dark);
+    padding: 4px 14px 16px;
+    letter-spacing: -0.3px;
+  }
+
+  .sidebar-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 8px 10px;
+    flex-shrink: 0;
+  }
+
+  .sidebar .nav-item {
+    width: 100%;
+    text-align: left;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 11px 14px;
+    border-radius: 14px;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.18s ease;
+    border: 1px solid transparent;
+    flex-shrink: 0;
+    text-decoration: none;
+    user-select: none;
+  }
+  .sidebar .nav-item div {
+    font-size: 18px;
+    width: 22px;
+    text-align: center;
+    margin: 0;
+    flex-shrink: 0;
+  }
+  .sidebar .nav-item span {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .sidebar .nav-item:hover {
+    background: var(--pill-bg);
+    color: var(--text);
+    border-color: var(--border);
+  }
+  .sidebar .nav-item.active {
+    background: rgba(255, 122, 0, 0.12);
+    color: var(--nav-active);
+    border-color: rgba(255, 122, 0, 0.2);
+    font-weight: 700;
+  }
+  .sidebar .nav-item:focus-visible {
+    outline: 2px solid var(--orange);
+    outline-offset: 1px;
+  }
+
+  .sidebar-bottom {
+    margin-top: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
+  /* ── Hide mobile bottom nav on desktop ── */
+  .bottom-nav { display: none !important; }
+
+  /* ── App shell — content column ── */
+  .app-shell {
+    max-width: none;
+    margin: 0;
+    padding-bottom: 40px;
+    overflow: visible;
+    box-shadow: none;
+    min-height: 100vh;
+  }
+
+  /* Inner content max-width for readability */
+  .screen {
+    max-width: 1040px;
+    margin: 0 auto;
+    padding: 28px 32px;
+  }
+
+  /* ── Topbar ── */
+  .topbar {
+    max-width: 100%;
+    margin: 0;
+    border-radius: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* ── Calendar dropdown centered ── */
+  #calendarDropdown {
+    left: 0 !important;
+    right: auto !important;
+    max-width: 380px;
+    top: 72px;
+  }
+
+  /* ── Modals: center on screen instead of bottom-sheet ── */
+  .modal-overlay {
+    align-items: center;
+  }
+  .modal-box {
+    border-radius: 28px;
+    max-width: 540px;
+    animation: bounceIn 0.25s ease;
+  }
+  .modal-content {
+    max-width: 540px;
+  }
+
+  /* ── Chat window taller ── */
+  .chat-window { height: 420px; }
+
+  /* ── Stats row 4 cols on wide screens ── */
+  .stats-row { grid-template-columns: repeat(3, 1fr); }
+
+  /* ── Quick grid 4 cols ── */
+  .quick-grid { grid-template-columns: repeat(3, 1fr); }
+
+  /* ── Toast repositioned for sidebar layout ── */
+  .toast {
+    left: calc(240px + 50%);
+    transform: translateX(-50%);
+  }
+
+  /* ── Homemade food hero bigger ── */
+  .homefood-hero {
+    padding: 32px;
+  }
+
+  /* ── Card hover states for mouse users ── */
+  .card {
+    transition: box-shadow 0.2s ease;
+  }
+  .card:hover {
+    box-shadow: 0 16px 48px rgba(0,0,0,0.1);
+  }
+
+  /* ── Hero card hover ── */
+  .hero-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 16px 40px rgba(245,166,35,0.4);
+  }
+
+  /* ── Stat card hover ── */
+  .stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px rgba(245,166,35,0.3);
+  }
+
+  /* ── DM modal wider ── */
+  .dm-modal-content {
+    max-width: 540px;
+    height: 70vh;
+  }
+
+  /* ── Pet card actions visible on hover ── */
+  .pet-card-item {
+    transition: box-shadow 0.2s, transform 0.2s;
+  }
+  .pet-card-item:hover {
+    transform: translateX(2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+  }
+  
+  /* ── Desktop UI Sharpening (Website Look) ── */
+  .card {
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  }
+  input, select, textarea {
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .primary-btn, .secondary-btn, .btn {
+    border-radius: 8px;
+    font-weight: 700;
+  }
+  .toggle-switch {
+    width: 44px;
+    height: 24px;
+  }
+  .toggle-switch::after {
+    width: 20px;
+    height: 20px;
+  }
+
+  /* ── Planner Desktop Grid ── */
+  .planner-desktop-grid {
+    display: grid;
+    grid-template-columns: 360px 1fr;
+    gap: 32px;
+    align-items: start;
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   LARGE DESKTOP  (≥ 1200px) — Wider sidebar
+   ═══════════════════════════════════════════════════ */
+@media (min-width: 1200px) {
+  .page-wrapper {
+    grid-template-columns: 260px 1fr;
+  }
+  .screen {
+    max-width: 1240px;
+    padding: 32px 40px;
+  }
+  .toast {
+    left: calc(260px + 50%);
+    transform: translateX(-50%);
+  }
+  .quick-grid { grid-template-columns: repeat(4, 1fr); }
+}

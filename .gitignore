@@ -32,6 +32,11 @@ yarn-error.log*
 *.swp
 *.swo
 
+# Appium generated files & reports
+PawFeedAppium/node_modules/
+PawFeedAppium/reports/
+PawFeedAppium/.wdio-results.jsonl
+
 # OS generated files
 .DS_Store
 Thumbs.db
